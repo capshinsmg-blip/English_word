@@ -1,0 +1,18 @@
+{
+  "name": "매일 영단어 - 영어회화 단어암기",
+  "short_name": "매일 영단어",
+  "description": "에빙하우스 망각곡선 기반 영어회화 단어 암기 앱",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f5f6fa",
+  "theme_color": "#4f46e5",
+  "lang": "ko",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

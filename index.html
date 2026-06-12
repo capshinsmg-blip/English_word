@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#4f46e5">
+  <meta name="description" content="에빙하우스 망각곡선 기반 영어회화 단어 암기 앱">
+  <title>매일 영단어 - 영어회화 단어암기</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="topbar-title">📚 매일 영단어</div>
+      <div class="topbar-streak" id="streak-badge">🔥 0일</div>
+    </header>
+
+    <main id="screen"><!-- 화면이 여기에 렌더링됨 --></main>
+
+    <div class="ad-banner" id="ad-banner">
+      <span class="ad-label">AD</span>
+      <span class="ad-text">광고 영역 — 영어회화 강의 배너 자리</span>
+    </div>
+
+    <nav class="tabbar">
+      <button class="tab active" data-tab="home">🏠<span>홈</span></button>
+      <button class="tab" data-tab="stats">📊<span>통계</span></button>
+      <button class="tab" data-tab="settings">⚙️<span>설정</span></button>
+    </nav>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/srs.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
