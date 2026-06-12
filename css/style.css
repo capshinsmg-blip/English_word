@@ -301,6 +301,18 @@ body {
 .tab.active svg { stroke-width: 2.4; }
 .tab.active span { font-weight: 800; }
 
+/* ===== PC(데스크톱) 화면 — 모바일 앱이 가운데 떠 있는 스타일 ===== */
+@media (min-width: 540px) {
+  body {
+    background: linear-gradient(160deg, #ece5f9 0%, #f6f4fb 60%, #efeafa 100%);
+  }
+  .app {
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    box-shadow: 0 10px 50px rgba(150, 123, 217, 0.22);
+  }
+}
+
 /* ===== 빈 상태 ===== */
 .empty {
   text-align: center;
