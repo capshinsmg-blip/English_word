@@ -367,7 +367,7 @@
       </div>
       <div class="card">
         <div class="card-sub" style="text-align:center">
-          매일 영단어 v0.1<br>에빙하우스 망각곡선 기반 영어회화 단어암기
+          하루보카 v0.1<br>에빙하우스 망각곡선 기반 영어회화 단어암기
         </div>
       </div>`;
 

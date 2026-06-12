@@ -1,16 +1,17 @@
 /* ===== 기본 설정 ===== */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
-  --primary: #4f46e5;
-  --primary-light: #eef2ff;
-  --primary-dark: #3730a3;
+  /* 하루보카 브랜드 컬러 (아이콘 보라색 #967BD9 기준) */
+  --primary: #967BD9;
+  --primary-light: #F1ECFA;
+  --primary-dark: #6A4DC4;
   --green: #10b981;
   --green-light: #ecfdf5;
   --red: #ef4444;
   --red-light: #fef2f2;
   --amber: #f59e0b;
   --amber-light: #fffbeb;
-  --bg: #f5f6fa;
+  --bg: #F6F4FB;
   --card: #ffffff;
   --text: #1f2937;
   --text-sub: #6b7280;

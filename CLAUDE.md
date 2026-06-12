@@ -1,6 +1,11 @@
-# 매일 영단어 (english_word)
+# 하루보카 (english_word)
 
 에빙하우스 망각곡선 기반 영어회화 단어암기 PWA 웹앱.
+
+## 브랜드
+- 앱 이름: **하루보카** (HARU VOCA)
+- 브랜드 컬러: **#967BD9** (보라) — CSS `--primary`, 아이콘 배경색과 동일
+- 아이콘 원본: `하루보카 이미지(반전).png` (1024px, 사용자가 직접 제작) → `icons/`에 512/192/180/32 리사이즈본
 
 ## 배포
 - GitHub: https://github.com/capshinsmg-blip/English_word
@@ -18,7 +23,7 @@
 - `js/data.js` — 단어 데이터 (`WORDS` 배열: id, w=단어, p=발음, m=뜻, ex=예문[[en,ko]])
 - `js/srs.js` — 에빙하우스 스케줄 엔진 (`SRS` 모듈, localStorage 키: `ew_state_v1`)
 - `js/app.js` — UI 로직 (홈/학습/퀴즈/통계/설정)
-- `manifest.json`, `sw.js`, `icon.svg` — PWA (홈화면 설치, 오프라인 지원)
+- `manifest.json`, `sw.js`, `icons/` — PWA (홈화면 설치, 오프라인 지원)
 
 ## 규칙
 - 빌드 도구 없음 — 순수 HTML/CSS/JS 유지 (입문자 프로젝트)

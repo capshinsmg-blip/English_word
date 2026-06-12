@@ -1,5 +1,5 @@
 // PWA 서비스워커 — 오프라인에서도 앱이 동작하도록 캐시
-const CACHE = "ew-v1";
+const CACHE = "ew-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -8,7 +8,10 @@ const ASSETS = [
   "./js/srs.js",
   "./js/app.js",
   "./manifest.json",
-  "./icon.svg"
+  "./icons/icon-192.png",
+  "./icons/icon-512.png",
+  "./icons/icon-180.png",
+  "./icons/icon-32.png"
 ];
 
 self.addEventListener("install", e => {
