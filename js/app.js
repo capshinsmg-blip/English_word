@@ -26,6 +26,26 @@
     $streak.textContent = `🔥 ${SRS.summary(state).streak}일`;
   }
 
+  // ===== 발음 듣기 (Web Speech API — 브라우저 내장 TTS) =====
+  function speak(text) {
+    if (!("speechSynthesis" in window)) return;
+    speechSynthesis.cancel(); // 이전 재생 중단
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "en-US";
+    u.rate = 0.95;
+    speechSynthesis.speak(u);
+  }
+
+  function speakBtn(text, small) {
+    return `<button class="speak-btn${small ? " sm" : ""}" data-say="${esc(text)}" aria-label="발음 듣기">🔊</button>`;
+  }
+
+  // 화면이 바뀌어도 동작하도록 문서 전체에서 클릭 위임
+  document.addEventListener("click", e => {
+    const btn = e.target.closest(".speak-btn");
+    if (btn) speak(btn.dataset.say);
+  });
+
   // ===== 탭 =====
   document.querySelectorAll(".tab").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -142,12 +162,12 @@
     $screen.innerHTML = `
       <div class="learn-progress">새 단어 암기 · ${idx + 1} / ${words.length}</div>
       <div class="word-card">
-        <div class="word">${esc(w.w)}</div>
+        <div class="word">${esc(w.w)} ${speakBtn(w.w)}</div>
         <div class="pron">${esc(w.p)}</div>
         <div class="mean">${esc(w.m)}</div>
         ${w.ex.map(e => `
           <div class="example">
-            <div class="en">${esc(e[0])}</div>
+            <div class="en">${esc(e[0])} ${speakBtn(e[0], true)}</div>
             <div class="ko">${esc(e[1])}</div>
           </div>`).join("")}
       </div>
@@ -205,7 +225,7 @@
       <div class="learn-progress">${stageName}${quiz.round > 1 ? ` · 재시험 ${quiz.round - 1}회차` : ""} · ${quiz.idx + 1} / ${quiz.queue.length}</div>
       <div class="quiz-q">
         <div class="label">이 단어의 뜻은?</div>
-        <div class="word">${esc(w.w)}</div>
+        <div class="word">${esc(w.w)} ${speakBtn(w.w)}</div>
       </div>
       <div class="choices">
         ${choices.map(c => `<button class="choice" data-mean="${esc(c)}">${esc(c)}</button>`).join("")}
@@ -256,10 +276,10 @@
       <div class="learn-progress">😅 틀린 단어 ${quiz.wrong.length}개 다시 외우기</div>
       ${quiz.wrong.map(w => `
         <div class="card">
-          <div class="card-title">${esc(w.w)} <span style="font-weight:400;font-size:13px;color:var(--text-sub)">${esc(w.p)}</span></div>
+          <div class="card-title">${esc(w.w)} ${speakBtn(w.w, true)} <span style="font-weight:400;font-size:13px;color:var(--text-sub)">${esc(w.p)}</span></div>
           <div class="batch-words">${esc(w.m)}</div>
           <div class="example">
-            <div class="en">${esc(w.ex[0][0])}</div>
+            <div class="en">${esc(w.ex[0][0])} ${speakBtn(w.ex[0][0], true)}</div>
             <div class="ko">${esc(w.ex[0][1])}</div>
           </div>
         </div>`).join("")}

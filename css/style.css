@@ -129,6 +129,22 @@ body {
 .btn-sm { padding: 9px 16px; font-size: 14px; }
 .btn:disabled { opacity: 0.5; cursor: default; }
 
+/* ===== 발음 듣기 버튼 ===== */
+.speak-btn {
+  border: none;
+  background: var(--primary-light);
+  border-radius: 999px;
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+  cursor: pointer;
+  vertical-align: middle;
+  margin-left: 4px;
+  transition: transform 0.1s;
+}
+.speak-btn:active { transform: scale(0.88); }
+.speak-btn.sm { width: 27px; height: 27px; font-size: 12px; }
+
 /* ===== 학습 카드 (단어 암기) ===== */
 .word-card {
   background: var(--card);
