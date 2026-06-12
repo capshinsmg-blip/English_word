@@ -4,11 +4,58 @@
   const $streak = document.getElementById("streak-badge");
   let state = SRS.load();
 
-  // ===== 관리자 모드 (간이 잠금 — 데이터 자체는 공개임에 유의) =====
-  const ADMIN_KEY = "ew_admin_v1";
-  const ADMIN_PASS = "haru1234";
-  function isAdmin() {
-    return localStorage.getItem(ADMIN_KEY) === "1";
+  // ===== 캐릭터 진화 단계 (레벨 도달 시 진화) =====
+  const EVOS = [
+    { lv: 1, icon: "🥚", name: "알" },
+    { lv: 3, icon: "🐣", name: "병아리" },
+    { lv: 6, icon: "🐥", name: "꼬마새" },
+    { lv: 10, icon: "🦜", name: "수다왕 앵무" },
+    { lv: 15, icon: "🦉", name: "지혜 부엉이" },
+    { lv: 20, icon: "🦅", name: "하늘제왕 독수리" },
+    { lv: 30, icon: "🐉", name: "전설의 용" }
+  ];
+
+  function evoFor(level) {
+    let cur = EVOS[0];
+    for (const e of EVOS) if (level >= e.lv) cur = e;
+    return cur;
+  }
+
+  function nextEvo(level) {
+    return EVOS.find(e => e.lv > level) || null;
+  }
+
+  // ===== 뱃지 (달성 조건) =====
+  const BADGES = [
+    { icon: "🌱", name: "첫 걸음", desc: "첫 단어 학습", test: (s, sum) => sum.totalLearned > 0 },
+    { icon: "🔥", name: "7일 연속", desc: "연속 7일 출석", test: s => s.best >= 7 },
+    { icon: "🌋", name: "30일 연속", desc: "연속 30일 출석", test: s => s.best >= 30 },
+    { icon: "📖", name: "단어 50", desc: "누적 50개 학습", test: (s, sum) => sum.totalLearned >= 50 },
+    { icon: "📚", name: "단어 100", desc: "누적 100개 학습", test: (s, sum) => sum.totalLearned >= 100 },
+    { icon: "🏰", name: "단어 300", desc: "누적 300개 학습", test: (s, sum) => sum.totalLearned >= 300 },
+    { icon: "🎓", name: "첫 졸업", desc: "3차 복습까지 완료", test: (s, sum) => sum.graduated > 0 },
+    { icon: "👑", name: "졸업 50", desc: "졸업 단어 50개", test: (s, sum) => sum.graduated >= 50 },
+    { icon: "💯", name: "퍼펙트", desc: "복습 첫 시도 100%", test: s => s.perfect >= 1 },
+    { icon: "🏆", name: "퍼펙트 10", desc: "퍼펙트 10회", test: s => s.perfect >= 10 },
+    { icon: "⭐", name: "레벨 5", desc: "레벨 5 도달", test: s => SRS.levelInfo(s.xp).level >= 5 },
+    { icon: "🌟", name: "레벨 10", desc: "레벨 10 도달", test: s => SRS.levelInfo(s.xp).level >= 10 }
+  ];
+
+  // 캐릭터 + 경험치 바 카드 HTML
+  function charCardHtml(compact) {
+    const info = SRS.levelInfo(state.xp);
+    const evo = evoFor(info.level);
+    const next = nextEvo(info.level);
+    const pct = Math.min(100, Math.round((info.cur / info.need) * 100));
+    return `
+      <div class="char-card${compact ? " compact" : ""}">
+        <div class="char-icon">${evo.icon}</div>
+        <div class="char-info">
+          <div class="char-name"><span class="char-lv">Lv.${info.level}</span> ${evo.name}</div>
+          <div class="xp-bar"><div class="xp-fill" style="width:${pct}%"></div></div>
+          <div class="xp-text">${info.cur} / ${info.need} XP${next ? ` · Lv.${next.lv}에 ${next.icon} 진화!` : " · 최종 진화 완료!"}</div>
+        </div>
+      </div>`;
   }
 
   // ===== 유틸 =====
@@ -60,6 +107,7 @@
       btn.classList.add("active");
       const tab = btn.dataset.tab;
       if (tab === "home") renderHome();
+      else if (tab === "dict") renderWordList();
       else if (tab === "stats") renderStats();
       else renderSettings();
     });
@@ -83,7 +131,8 @@
       <div class="greeting">
         <h2>오늘의 학습 🎯</h2>
         <p>${SRS.todayStr()} · 에빙하우스 곡선으로 똑똑하게 외우기</p>
-      </div>`;
+      </div>
+      ${charCardHtml(true)}`;
 
     // 새 단어 카드
     if (learnedToday) {
@@ -191,10 +240,11 @@
     document.getElementById("btn-next").addEventListener("click", () => {
       if (isLast) {
         // 첫 암기 완료 → 배치 생성 후 바로 확인 시험 (스케줄에는 영향 없음)
+        const xpBefore = state.xp;
         SRS.completeLearn(state, learnCtx.words.map(w => w.id));
         state = SRS.load();
         updateStreak();
-        startQuiz(learnCtx.words, { batchId: null, stage: 0 });
+        startQuiz(learnCtx.words, { batchId: null, stage: 0, learnXp: state.xp - xpBefore });
       } else {
         learnCtx.idx++;
         renderLearnCard();
@@ -303,9 +353,13 @@
 
   function finishQuiz() {
     const { meta, firstTotal, firstCorrect } = quiz;
+    const perfect = firstCorrect === firstTotal;
+    let xpGained = meta.learnXp || 0;
     if (meta.stage >= 1 && meta.batchId) {
-      SRS.completeReview(state, meta.batchId, meta.stage);
+      const xpBefore = state.xp;
+      SRS.completeReview(state, meta.batchId, meta.stage, perfect);
       state = SRS.load();
+      xpGained = state.xp - xpBefore;
     }
     updateStreak();
 
@@ -315,9 +369,11 @@
       <div class="result-box">
         <div class="emoji">${rate === 100 ? "🏆" : "💪"}</div>
         <h2>${isFirstLearn ? "오늘의 새 단어 암기 완료!" : SRS.STAGE_NAMES[meta.stage] + " 완료!"}</h2>
+        ${xpGained > 0 ? `<div class="xp-gain">⚡ +${xpGained} XP${perfect && !isFirstLearn ? " · 💯 퍼펙트!" : ""}</div>` : ""}
         <p>첫 시도 정답률 ${rate}% (${firstCorrect}/${firstTotal})<br>
         ${isFirstLearn ? "내일 1차 복습 시험이 열려요." : nextReviewMessage(meta.stage)}</p>
-        <button class="btn btn-primary btn-block" id="btn-home">홈으로</button>
+        ${charCardHtml(true)}
+        <button class="btn btn-primary btn-block" id="btn-home" style="margin-top:14px">홈으로</button>
       </div>`;
     document.getElementById("btn-home").addEventListener("click", goHomeTab);
   }
@@ -328,19 +384,33 @@
     return "이 단어들은 졸업했어요! 🎓";
   }
 
-  // ===== 통계 화면 =====
+  // ===== 나의 학습 화면 =====
   function renderStats() {
     state = SRS.load();
     const s = SRS.summary(state);
+    const earned = BADGES.filter(b => b.test(state, s)).length;
 
     let html = `
-      <div class="greeting"><h2>학습 통계 📊</h2><p>지금까지의 기록</p></div>
-      <div class="stat-grid">
+      <div class="greeting"><h2>나의 학습 📖</h2><p>꾸준함이 캐릭터를 키워요</p></div>
+      ${charCardHtml(false)}
+      <div class="stat-grid three">
         <div class="stat-box"><div class="num">${s.totalLearned}</div><div class="lbl">학습한 단어</div></div>
         <div class="stat-box"><div class="num">${s.graduated}</div><div class="lbl">졸업한 단어 🎓</div></div>
         <div class="stat-box"><div class="num">${s.streak}</div><div class="lbl">연속 학습일 🔥</div></div>
-        <div class="stat-box"><div class="num">${s.remaining}</div><div class="lbl">남은 단어</div></div>
-      </div>`;
+      </div>
+      <h3 class="section-title">뱃지 <span class="section-sub">${earned} / ${BADGES.length}</span></h3>
+      <div class="badge-grid">
+        ${BADGES.map(b => {
+          const ok = b.test(state, s);
+          return `
+            <div class="badge-item ${ok ? "" : "locked"}">
+              <div class="bi-icon">${b.icon}</div>
+              <div class="bi-name">${b.name}</div>
+              <div class="bi-desc">${b.desc}</div>
+            </div>`;
+        }).join("")}
+      </div>
+      <h3 class="section-title">학습 기록</h3>`;
 
     if (state.batches.length > 0) {
       html += `<div class="batch-list">`;
@@ -386,16 +456,6 @@
       <div class="card">
         <div class="setting-row">
           <div>
-            <div class="card-title" style="font-size:15px">관리자 모드</div>
-            <div class="card-sub">${isAdmin() ? "켜짐 — 전체 단어장 열람 가능" : "비밀번호로 잠금 해제"}</div>
-          </div>
-          <button class="btn ${isAdmin() ? "btn-danger" : "btn-ghost"} btn-sm" id="btn-admin">${isAdmin() ? "끄기" : "해제"}</button>
-        </div>
-        ${isAdmin() ? `<button class="btn btn-primary btn-block" id="btn-wordlist" style="margin-top:10px">📖 전체 단어장 보기</button>` : ""}
-      </div>
-      <div class="card">
-        <div class="setting-row">
-          <div>
             <div class="card-title" style="font-size:15px">학습 기록 초기화</div>
             <div class="card-sub">모든 진도가 삭제돼요 (단어 데이터는 유지)</div>
           </div>
@@ -412,23 +472,6 @@
       state.settings.newPerDay = Number(e.target.value);
       SRS.save(state);
     });
-    document.getElementById("btn-admin").addEventListener("click", () => {
-      if (isAdmin()) {
-        localStorage.removeItem(ADMIN_KEY);
-        renderSettings();
-        return;
-      }
-      const pw = prompt("관리자 비밀번호를 입력하세요");
-      if (pw === ADMIN_PASS) {
-        localStorage.setItem(ADMIN_KEY, "1");
-        renderSettings();
-      } else if (pw !== null) {
-        alert("비밀번호가 틀렸어요.");
-      }
-    });
-    const $wl = document.getElementById("btn-wordlist");
-    if ($wl) $wl.addEventListener("click", renderWordList);
-
     document.getElementById("btn-reset").addEventListener("click", () => {
       if (confirm("정말 모든 학습 기록을 초기화할까요?")) {
         SRS.reset();
@@ -438,7 +481,7 @@
     });
   }
 
-  // ===== 전체 단어장 (관리자 전용 화면) =====
+  // ===== 단어장 (전체 공개 — 테마 선택 + 검색) =====
   function wordStatusBadge(id) {
     for (const b of state.batches) {
       if (b.wordIds.includes(id)) {
@@ -450,24 +493,43 @@
     return `<span class="badge badge-new">미학습</span>`;
   }
 
+  let dictTheme = "전체"; // 단어장에서 마지막으로 고른 테마 기억
+
   function renderWordList() {
     state = SRS.load();
+    const themedIds = new Set(THEMES.flatMap(t => t.ids));
+    const etcIds = WORDS.filter(w => !themedIds.has(w.id)).map(w => w.id);
+    const chipNames = ["전체", ...THEMES.map(t => t.name)];
+    if (etcIds.length > 0) chipNames.push("기타");
+    if (!chipNames.includes(dictTheme)) dictTheme = "전체";
+
     $screen.innerHTML = `
-      <div class="card-row" style="margin-bottom:8px">
-        <h2>전체 단어장 📖</h2>
-        <button class="btn btn-ghost btn-sm" id="btn-back-settings">← 설정</button>
-      </div>
-      <p class="card-sub" style="margin-bottom:12px">총 ${WORDS.length}개 · 단어를 누르면 예문이 펼쳐져요</p>
+      <div class="greeting"><h2>단어장 📖</h2><p>총 ${WORDS.length}개 · 단어를 누르면 예문이 펼쳐져요</p></div>
       <input type="search" id="word-search" class="search-input" placeholder="🔍 단어 또는 뜻으로 검색">
+      <div class="theme-chips">
+        ${chipNames.map(n => `<button class="chip ${n === dictTheme ? "active" : ""}" data-theme="${esc(n)}">${esc(n)}</button>`).join("")}
+      </div>
+      <p class="card-sub" id="word-count" style="margin-bottom:10px"></p>
       <div id="word-list"></div>`;
 
     const $list = document.getElementById("word-list");
+    const $search = document.getElementById("word-search");
+    const $count = document.getElementById("word-count");
 
-    function renderItems(q) {
-      const query = (q || "").trim().toLowerCase();
+    function themeIdSet() {
+      if (dictTheme === "전체") return null;
+      if (dictTheme === "기타") return new Set(etcIds);
+      return new Set(THEMES.find(t => t.name === dictTheme).ids);
+    }
+
+    function renderItems() {
+      const query = $search.value.trim().toLowerCase();
+      const tset = themeIdSet();
       const items = WORDS.filter(w =>
-        !query || w.w.toLowerCase().includes(query) || w.m.toLowerCase().includes(query)
+        (!tset || tset.has(w.id)) &&
+        (!query || w.w.toLowerCase().includes(query) || w.m.toLowerCase().includes(query))
       );
+      $count.textContent = `${dictTheme} ${items.length}개`;
       $list.innerHTML = items.map(w => `
         <details class="word-item">
           <summary>
@@ -487,9 +549,17 @@
         </details>`).join("") || `<div class="empty"><div class="emoji">🔍</div>검색 결과가 없어요.</div>`;
     }
 
-    renderItems("");
-    document.getElementById("word-search").addEventListener("input", e => renderItems(e.target.value));
-    document.getElementById("btn-back-settings").addEventListener("click", renderSettings);
+    renderItems();
+    $search.addEventListener("input", renderItems);
+    document.querySelectorAll(".theme-chips .chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        dictTheme = chip.dataset.theme;
+        document.querySelectorAll(".theme-chips .chip").forEach(c =>
+          c.classList.toggle("active", c.dataset.theme === dictTheme)
+        );
+        renderItems();
+      });
+    });
   }
 
   // ===== PWA 서비스워커 등록 =====

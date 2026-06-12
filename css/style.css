@@ -226,6 +226,7 @@ body {
   gap: 12px;
   margin-bottom: 16px;
 }
+.stat-grid.three { grid-template-columns: 1fr 1fr 1fr; }
 .stat-box {
   background: var(--card);
   border: 1px solid var(--border);
@@ -317,7 +318,107 @@ body {
 .tab.active svg { stroke-width: 2.4; }
 .tab.active span { font-weight: 800; }
 
-/* ===== 전체 단어장 (관리자) ===== */
+/* ===== 캐릭터 & 레벨 ===== */
+.char-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: linear-gradient(135deg, #F1ECFA 0%, #ffffff 70%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 10px rgba(150, 123, 217, 0.08);
+  text-align: left;
+}
+.char-card.compact { padding: 12px 16px; }
+.char-icon { font-size: 44px; line-height: 1; }
+.char-card.compact .char-icon { font-size: 34px; }
+.char-info { flex: 1; min-width: 0; }
+.char-name { font-weight: 800; font-size: 15px; }
+.char-lv { color: var(--primary-dark); }
+.xp-bar {
+  height: 8px;
+  background: #e7e1f3;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+.xp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), #b9a3e8);
+  border-radius: 999px;
+  transition: width 0.4s;
+}
+.xp-text { font-size: 11px; color: var(--text-sub); margin-top: 4px; }
+.xp-gain {
+  display: inline-block;
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  font-weight: 800;
+  font-size: 15px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  margin: 4px 0 10px;
+}
+
+/* ===== 섹션 제목 ===== */
+.section-title {
+  font-size: 16px;
+  margin: 18px 0 10px;
+}
+.section-sub { font-size: 13px; color: var(--text-sub); font-weight: 600; }
+
+/* ===== 뱃지 ===== */
+.badge-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.badge-item {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 6px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(150, 123, 217, 0.05);
+}
+.badge-item .bi-icon { font-size: 26px; }
+.badge-item .bi-name { font-size: 12px; font-weight: 800; margin-top: 4px; }
+.badge-item .bi-desc { font-size: 10px; color: var(--text-sub); margin-top: 2px; }
+.badge-item.locked { opacity: 0.4; filter: grayscale(1); }
+
+/* ===== 테마 칩 ===== */
+.theme-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.theme-chips::-webkit-scrollbar { display: none; }
+.chip {
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-sub);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+}
+.chip.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+/* ===== 단어장 ===== */
 .search-input {
   width: 100%;
   box-sizing: border-box;
