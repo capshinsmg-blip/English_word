@@ -4,6 +4,13 @@
   const $streak = document.getElementById("streak-badge");
   let state = SRS.load();
 
+  // ===== 관리자 모드 (간이 잠금 — 데이터 자체는 공개임에 유의) =====
+  const ADMIN_KEY = "ew_admin_v1";
+  const ADMIN_PASS = "haru1234";
+  function isAdmin() {
+    return localStorage.getItem(ADMIN_KEY) === "1";
+  }
+
   // ===== 유틸 =====
   function shuffle(arr) {
     const a = arr.slice();
@@ -379,6 +386,16 @@
       <div class="card">
         <div class="setting-row">
           <div>
+            <div class="card-title" style="font-size:15px">관리자 모드</div>
+            <div class="card-sub">${isAdmin() ? "켜짐 — 전체 단어장 열람 가능" : "비밀번호로 잠금 해제"}</div>
+          </div>
+          <button class="btn ${isAdmin() ? "btn-danger" : "btn-ghost"} btn-sm" id="btn-admin">${isAdmin() ? "끄기" : "해제"}</button>
+        </div>
+        ${isAdmin() ? `<button class="btn btn-primary btn-block" id="btn-wordlist" style="margin-top:10px">📖 전체 단어장 보기</button>` : ""}
+      </div>
+      <div class="card">
+        <div class="setting-row">
+          <div>
             <div class="card-title" style="font-size:15px">학습 기록 초기화</div>
             <div class="card-sub">모든 진도가 삭제돼요 (단어 데이터는 유지)</div>
           </div>
@@ -395,6 +412,23 @@
       state.settings.newPerDay = Number(e.target.value);
       SRS.save(state);
     });
+    document.getElementById("btn-admin").addEventListener("click", () => {
+      if (isAdmin()) {
+        localStorage.removeItem(ADMIN_KEY);
+        renderSettings();
+        return;
+      }
+      const pw = prompt("관리자 비밀번호를 입력하세요");
+      if (pw === ADMIN_PASS) {
+        localStorage.setItem(ADMIN_KEY, "1");
+        renderSettings();
+      } else if (pw !== null) {
+        alert("비밀번호가 틀렸어요.");
+      }
+    });
+    const $wl = document.getElementById("btn-wordlist");
+    if ($wl) $wl.addEventListener("click", renderWordList);
+
     document.getElementById("btn-reset").addEventListener("click", () => {
       if (confirm("정말 모든 학습 기록을 초기화할까요?")) {
         SRS.reset();
@@ -402,6 +436,60 @@
         goHomeTab();
       }
     });
+  }
+
+  // ===== 전체 단어장 (관리자 전용 화면) =====
+  function wordStatusBadge(id) {
+    for (const b of state.batches) {
+      if (b.wordIds.includes(id)) {
+        if (b.reviews[3]) return `<span class="badge badge-done">🎓 졸업</span>`;
+        const done = [1, 2, 3].filter(k => b.reviews[k]).length;
+        return `<span class="badge badge-r1">학습중 ${done}/3</span>`;
+      }
+    }
+    return `<span class="badge badge-new">미학습</span>`;
+  }
+
+  function renderWordList() {
+    state = SRS.load();
+    $screen.innerHTML = `
+      <div class="card-row" style="margin-bottom:8px">
+        <h2>전체 단어장 📖</h2>
+        <button class="btn btn-ghost btn-sm" id="btn-back-settings">← 설정</button>
+      </div>
+      <p class="card-sub" style="margin-bottom:12px">총 ${WORDS.length}개 · 단어를 누르면 예문이 펼쳐져요</p>
+      <input type="search" id="word-search" class="search-input" placeholder="🔍 단어 또는 뜻으로 검색">
+      <div id="word-list"></div>`;
+
+    const $list = document.getElementById("word-list");
+
+    function renderItems(q) {
+      const query = (q || "").trim().toLowerCase();
+      const items = WORDS.filter(w =>
+        !query || w.w.toLowerCase().includes(query) || w.m.toLowerCase().includes(query)
+      );
+      $list.innerHTML = items.map(w => `
+        <details class="word-item">
+          <summary>
+            <div class="wi-main">
+              <div class="wi-word">${esc(w.w)} <span class="wi-pron">${esc(w.p)}</span></div>
+              <div class="wi-mean">${esc(w.m)}</div>
+            </div>
+            ${wordStatusBadge(w.id)}
+          </summary>
+          <div class="wi-body">
+            ${w.ex.map(e => `
+              <div class="example">
+                <div class="en">${esc(e[0])} ${speakBtn(e[0], true)}</div>
+                <div class="ko">${esc(e[1])}</div>
+              </div>`).join("")}
+          </div>
+        </details>`).join("") || `<div class="empty"><div class="emoji">🔍</div>검색 결과가 없어요.</div>`;
+    }
+
+    renderItems("");
+    document.getElementById("word-search").addEventListener("input", e => renderItems(e.target.value));
+    document.getElementById("btn-back-settings").addEventListener("click", renderSettings);
   }
 
   // ===== PWA 서비스워커 등록 =====
