@@ -418,6 +418,57 @@ body {
   color: #fff;
 }
 
+/* ===== 단어장 테마 그룹 (접이식) ===== */
+.top-chips { margin-bottom: 10px; }
+.theme-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.theme-group {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  overflow: hidden;
+}
+.theme-group > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+.theme-group > summary::-webkit-details-marker { display: none; }
+.theme-group > summary .tg-name { flex: 1; }
+.theme-group > summary .tg-meta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-sub);
+  background: var(--bg);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+.theme-group > summary::after {
+  content: "▾";
+  color: var(--text-sub);
+  font-size: 12px;
+  transition: transform 0.2s;
+}
+.theme-group[open] > summary::after { transform: rotate(180deg); }
+.theme-group[open] > summary { color: var(--primary); }
+.theme-group .theme-chips {
+  flex-wrap: wrap;
+  overflow: visible;
+  padding: 0 12px 12px;
+  margin: 0;
+}
+
 /* ===== 단어장 ===== */
 .search-input {
   width: 100%;

@@ -499,17 +499,31 @@
     state = SRS.load();
     const themedIds = new Set(THEMES.flatMap(t => t.ids));
     const etcIds = WORDS.filter(w => !themedIds.has(w.id)).map(w => w.id);
-    const chipNames = ["전체", ...THEMES.map(t => t.name)];
-    if (etcIds.length > 0) chipNames.push("기타");
-    if (!chipNames.includes(dictTheme)) dictTheme = "전체";
+    if (dictTheme !== "전체" && dictTheme !== "기타" && !THEMES.some(t => t.name === dictTheme)) dictTheme = "전체";
+
+    // 선택된 테마가 속한 그룹은 펼친 채로 렌더 (나머지는 접힘)
+    const activeGroup = THEME_GROUPS.find(g => g.themes.some(t => t.name === dictTheme));
+
+    const groupsHtml = THEME_GROUPS.map(g => {
+      const chips = g.themes.map(t =>
+        `<button class="chip ${t.name === dictTheme ? "active" : ""}" data-theme="${esc(t.name)}">${esc(t.name)}</button>`
+      ).join("");
+      return `<details class="theme-group" ${g === activeGroup ? "open" : ""}>
+          <summary><span class="tg-name">${esc(g.name)}</span><span class="tg-meta">${g.themes.length}</span></summary>
+          <div class="theme-chips">${chips}</div>
+        </details>`;
+    }).join("");
+
+    const topChips =
+      `<button class="chip ${dictTheme === "전체" ? "active" : ""}" data-theme="전체">전체</button>` +
+      (etcIds.length > 0 ? `<button class="chip ${dictTheme === "기타" ? "active" : ""}" data-theme="기타">기타</button>` : "");
 
     $screen.innerHTML = `
-      <div class="greeting"><h2>단어장 📖</h2><p>총 ${WORDS.length}개 · 단어를 누르면 예문이 펼쳐져요</p></div>
+      <div class="greeting"><h2>단어장 📖</h2><p>총 ${WORDS.length}개 · 주제를 펼쳐서 골라보세요</p></div>
       <input type="search" id="word-search" class="search-input" placeholder="🔍 단어 또는 뜻으로 검색">
-      <div class="theme-chips">
-        ${chipNames.map(n => `<button class="chip ${n === dictTheme ? "active" : ""}" data-theme="${esc(n)}">${esc(n)}</button>`).join("")}
-      </div>
-      <p class="card-sub" id="word-count" style="margin-bottom:10px"></p>
+      <div class="theme-chips top-chips">${topChips}</div>
+      <div class="theme-groups">${groupsHtml}</div>
+      <p class="card-sub" id="word-count" style="margin:12px 0 10px"></p>
       <div id="word-list"></div>`;
 
     const $list = document.getElementById("word-list");
@@ -519,7 +533,8 @@
     function themeIdSet() {
       if (dictTheme === "전체") return null;
       if (dictTheme === "기타") return new Set(etcIds);
-      return new Set(THEMES.find(t => t.name === dictTheme).ids);
+      const t = THEMES.find(t => t.name === dictTheme);
+      return t ? new Set(t.ids) : null;
     }
 
     function renderItems() {
@@ -529,7 +544,7 @@
         (!tset || tset.has(w.id)) &&
         (!query || w.w.toLowerCase().includes(query) || w.m.toLowerCase().includes(query))
       );
-      $count.textContent = `${dictTheme} ${items.length}개`;
+      $count.textContent = `${dictTheme} · ${items.length}개`;
       $list.innerHTML = items.map(w => `
         <details class="word-item">
           <summary>
@@ -551,10 +566,10 @@
 
     renderItems();
     $search.addEventListener("input", renderItems);
-    document.querySelectorAll(".theme-chips .chip").forEach(chip => {
+    $screen.querySelectorAll(".chip").forEach(chip => {
       chip.addEventListener("click", () => {
         dictTheme = chip.dataset.theme;
-        document.querySelectorAll(".theme-chips .chip").forEach(c =>
+        $screen.querySelectorAll(".chip").forEach(c =>
           c.classList.toggle("active", c.dataset.theme === dictTheme)
         );
         renderItems();
