@@ -34,6 +34,12 @@
 - 탭 4개: 홈 / 단어장(공개, 테마 칩 + 검색, `THEMES`는 data.js) / 나의 학습 / 설정
 - 게임화: 경험치(`XP_RULES`: 출석 20, 새 단어 5, 복습 단어 8) → 레벨(`levelInfo`) → 캐릭터 진화(`EVOS`), 뱃지(`BADGES`) — 진화/뱃지는 app.js, XP는 srs.js
 
+## 분석 (GA4)
+- 측정 ID는 `index.html` 상단 `window.GA_ID` 한 곳에서 관리 (placeholder면 GA 미로드)
+- 이벤트 헬퍼: 전역 `track(name, params)` — app.js에서 호출
+- 추적 이벤트: `tab_view`, `learn_start`, `learn_complete`, `quiz_start`, `quiz_complete`(rate·perfect)
+- 자동 수집: 첫방문/세션/리텐션 등은 GA4 기본 제공
+
 ## 로드맵
 - [x] v0.1 뼈대: 학습/복습/퀴즈/통계/PWA
 - [x] 단어 발음 듣기 (Web Speech API — 단어/예문 🔊 버튼, 온라인 필요할 수 있음)

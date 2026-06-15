@@ -6,10 +6,30 @@
   <meta name="theme-color" content="#967BD9">
   <meta name="description" content="하루보카 - 에빙하우스 망각곡선 기반 영어회화 단어 암기 앱">
   <title>하루보카 - 영어회화 단어암기</title>
+
+  <!-- Google Analytics (GA4) — 본인 측정 ID(G-XXXXXXXXXX)로 한 번만 교체하면 됨 -->
+  <script>
+    window.GA_ID = "G-Y53DT8CBB6"; // ← GA4 속성 > 데이터 스트림에서 발급받은 측정 ID
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){ dataLayer.push(arguments); }
+    // ID가 실제 값일 때만 GA 로드 (placeholder 상태에서는 아무 동작 안 함)
+    var GA_ON = /^G-/.test(GA_ID) && !/X{4}/.test(GA_ID);
+    if (GA_ON) {
+      var gaScript = document.createElement("script");
+      gaScript.async = true;
+      gaScript.src = "https://www.googletagmanager.com/gtag/js?id=" + GA_ID;
+      document.head.appendChild(gaScript);
+      gtag("js", new Date());
+      gtag("config", GA_ID);
+    }
+    // 앱 어디서나 호출하는 이벤트 추적 헬퍼 (ID 미설정 시 무해한 no-op)
+    window.track = function (name, params) { if (GA_ON) gtag("event", name, params || {}); };
+  </script>
+
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
-  <link rel="stylesheet" href="css/style.css?v=10">
+  <link rel="stylesheet" href="css/style.css?v=11">
 </head>
 <body>
   <div class="app">
@@ -45,8 +65,8 @@
     </nav>
   </div>
 
-  <script src="js/data.js?v=10"></script>
-  <script src="js/srs.js?v=10"></script>
-  <script src="js/app.js?v=10"></script>
+  <script src="js/data.js?v=11"></script>
+  <script src="js/srs.js?v=11"></script>
+  <script src="js/app.js?v=11"></script>
 </body>
 </html>

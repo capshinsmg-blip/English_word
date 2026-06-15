@@ -106,6 +106,7 @@
       document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
       const tab = btn.dataset.tab;
+      track("tab_view", { tab });
       if (tab === "home") renderHome();
       else if (tab === "dict") renderWordList();
       else if (tab === "stats") renderStats();
@@ -207,6 +208,7 @@
 
   function startLearn(words) {
     learnCtx = { words, idx: 0 };
+    track("learn_start", { count: words.length });
     renderLearnCard();
   }
 
@@ -244,6 +246,7 @@
         SRS.completeLearn(state, learnCtx.words.map(w => w.id));
         state = SRS.load();
         updateStreak();
+        track("learn_complete", { count: learnCtx.words.length });
         startQuiz(learnCtx.words, { batchId: null, stage: 0, learnXp: state.xp - xpBefore });
       } else {
         learnCtx.idx++;
@@ -265,6 +268,7 @@
       firstCorrect: 0,
       round: 1
     };
+    track("quiz_start", { stage: meta.stage });
     renderQuizQuestion();
   }
 
@@ -365,6 +369,7 @@
 
     const rate = Math.round((firstCorrect / firstTotal) * 100);
     const isFirstLearn = meta.stage === 0;
+    track("quiz_complete", { stage: meta.stage, rate, perfect: perfect ? 1 : 0 });
     $screen.innerHTML = `
       <div class="result-box">
         <div class="emoji">${rate === 100 ? "🏆" : "💪"}</div>
