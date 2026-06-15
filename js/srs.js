@@ -26,7 +26,7 @@ const SRS = (() => {
   }
 
   function defaultState() {
-    return { batches: [], activity: [], settings: { newPerDay: 5 }, xp: 0, perfect: 0, best: 0 };
+    return { batches: [], activity: [], settings: { newPerDay: 5, startId: 1 }, xp: 0, perfect: 0, best: 0, onboarded: false, placement: null };
   }
 
   function load() {
@@ -37,10 +37,14 @@ const SRS = (() => {
       if (Array.isArray(raw.batches)) s.batches = raw.batches;
       if (Array.isArray(raw.activity)) s.activity = raw.activity;
       if (raw.settings && raw.settings.newPerDay) s.settings.newPerDay = raw.settings.newPerDay;
+      if (raw.settings && raw.settings.startId) s.settings.startId = raw.settings.startId;
       // 레벨 시스템 도입 전 데이터는 기존 진도로 경험치를 보정해줌
       s.xp = typeof raw.xp === "number" ? raw.xp : estimateXp(s);
       s.perfect = typeof raw.perfect === "number" ? raw.perfect : 0;
       s.best = typeof raw.best === "number" ? raw.best : streak(s);
+      // 레벨 테스트(온보딩): 기존 학습 기록이 있으면 이미 완료한 것으로 간주
+      s.onboarded = raw.onboarded === true || (Array.isArray(raw.batches) && raw.batches.length > 0);
+      s.placement = raw.placement || null;
       return s;
     } catch {
       return defaultState();
@@ -78,9 +82,11 @@ const SRS = (() => {
   }
 
   // 아직 학습하지 않은 단어 중 오늘 외울 새 단어 목록
+  // (레벨 테스트로 정한 startId 이전의 쉬운 단어는 "이미 아는 것"으로 보고 건너뜀)
   function nextNewWords(s) {
     const used = new Set(s.batches.flatMap(b => b.wordIds));
-    return WORDS.filter(w => !used.has(w.id)).slice(0, s.settings.newPerDay);
+    const startId = (s.settings && s.settings.startId) || 1;
+    return WORDS.filter(w => w.id >= startId && !used.has(w.id)).slice(0, s.settings.newPerDay);
   }
 
   // 오늘 이미 새 단어를 외웠는가
@@ -153,6 +159,27 @@ const SRS = (() => {
     return n;
   }
 
+  // 레벨 테스트 결과를 커리큘럼에 반영 (시작 단어 위치 + 하루 분량)
+  function applyPlacement(s, placement) {
+    s.placement = placement;               // { key, label, icon, vocab, startId, newPerDay, ... }
+    s.settings.startId = placement.startId; // 이 단어부터 새로 외우기 시작
+    s.settings.newPerDay = placement.newPerDay;
+    s.onboarded = true;
+    save(s);
+  }
+
+  // 레벨 테스트를 건너뛰고 왕초보(처음부터)로 시작
+  function skipOnboarding(s) {
+    s.onboarded = true;
+    save(s);
+  }
+
+  // 레벨 테스트 다시 하기 (진도는 유지, 온보딩 화면만 다시 띄움)
+  function clearOnboarding(s) {
+    s.onboarded = false;
+    save(s);
+  }
+
   // 통계용 요약
   function summary(s) {
     const total = s.batches.reduce((n, b) => n + b.wordIds.length, 0);
@@ -172,6 +199,7 @@ const SRS = (() => {
     load, save, reset,
     nextNewWords, learnedToday, dueReviews,
     completeLearn, completeReview,
+    applyPlacement, skipOnboarding, clearOnboarding,
     summary, levelInfo
   };
 })();
