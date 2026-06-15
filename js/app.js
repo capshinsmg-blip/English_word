@@ -108,7 +108,7 @@
       const tab = btn.dataset.tab;
       track("tab_view", { tab });
       if (tab === "home") renderHome();
-      else if (tab === "dict") renderWordList();
+      else if (tab === "dict") { dictSel = null; renderWordList(); }
       else if (tab === "stats") renderStats();
       else renderSettings();
     });
@@ -117,6 +117,128 @@
   function goHomeTab() {
     document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.tab === "home"));
     renderHome();
+  }
+
+  // ===== 레벨 테스트 (가입/첫 실행 온보딩) =====
+  // 단어 id가 클수록 어렵고 덜 빈출 → 난이도 사다리로 10개를 뽑아 자가진단
+  const PLACEMENT_LADDER = [25, 130, 300, 480, 700, 980, 1350, 1750, 2250, 2800];
+  const LEVELS = [
+    { key: "beginner",     icon: "🐣", label: "입문 (왕초보)", max: 299,      newPerDay: 5,  desc: "기초 회화 단어부터 차근차근 시작해요!" },
+    { key: "elementary",   icon: "🌱", label: "초급",          max: 799,      newPerDay: 5,  desc: "일상에서 자주 쓰는 단어로 탄탄하게!" },
+    { key: "intermediate", icon: "🌿", label: "중급",          max: 1499,     newPerDay: 8,  desc: "표현의 폭을 넓혀 더 자연스럽게!" },
+    { key: "upper",        icon: "🌳", label: "중상급",        max: 2299,     newPerDay: 8,  desc: "고급 표현에 본격적으로 도전!" },
+    { key: "advanced",     icon: "🏆", label: "고급",          max: Infinity, newPerDay: 10, desc: "전문·심화 어휘까지 완전 정복!" }
+  ];
+
+  let placeCtx = null;
+
+  function renderOnboarding() {
+    document.body.classList.add("onboarding");
+    $screen.innerHTML = `
+      <div class="onb intro">
+        <div class="onb-emoji">🎯</div>
+        <h2>내 영어 단어 레벨 테스트</h2>
+        <p class="onb-sub">딱 10단어, 1분이면 끝나요.<br>내 수준에 <b>딱 맞는 단어</b>부터 외우게 도와드릴게요!</p>
+        <div class="onb-hooks">
+          <div class="onb-hook"><span>📊</span> 내 예상 어휘량 분석</div>
+          <div class="onb-hook"><span>📅</span> 레벨별 맞춤 커리큘럼</div>
+          <div class="onb-hook"><span>⏩</span> 이미 아는 단어는 건너뛰기</div>
+        </div>
+        <button class="btn btn-primary btn-block" id="onb-start">테스트 시작하기 →</button>
+        <button class="btn btn-ghost btn-block" id="onb-skip" style="margin-top:8px">건너뛰고 왕초보로 시작</button>
+      </div>`;
+    document.getElementById("onb-start").addEventListener("click", startPlacement);
+    document.getElementById("onb-skip").addEventListener("click", () => {
+      SRS.skipOnboarding(state); state = SRS.load(); finishOnboarding();
+    });
+  }
+
+  function startPlacement() {
+    const words = PLACEMENT_LADDER.map(id => WORDS.find(w => w.id === id)).filter(Boolean);
+    placeCtx = { words, idx: 0, answers: [], lastWord: null };
+    renderPlaceQ();
+  }
+
+  function renderPlaceQ() {
+    const { words, idx, lastWord } = placeCtx;
+    const w = words[idx];
+    const pct = Math.round((idx / words.length) * 100);
+    $screen.innerHTML = `
+      <div class="onb test">
+        <div class="onb-bar"><div class="onb-bar-fill" style="width:${pct}%"></div></div>
+        <div class="onb-qnum">${idx + 1} / ${words.length}</div>
+        ${lastWord
+          ? `<div class="onb-recall">방금 본 단어 · <b>${esc(lastWord.w)}</b> = ${esc(lastWord.m)}</div>`
+          : `<div class="onb-recall hint">아는 만큼 솔직하게 골라주세요 🙂</div>`}
+        <div class="onb-word">${esc(w.w)} ${speakBtn(w.w)}</div>
+        <div class="onb-pron">${esc(w.p)}</div>
+        <div class="onb-ask">이 단어, 뜻을 알고 있나요?</div>
+        <div class="onb-choices">
+          <button class="btn onb-know" data-known="1">😎 알아요</button>
+          <button class="btn onb-no" data-known="0">🤔 몰라요</button>
+        </div>
+      </div>`;
+    $screen.querySelectorAll(".onb-choices button").forEach(b => {
+      b.addEventListener("click", () => {
+        placeCtx.answers.push({ id: w.id, known: b.dataset.known === "1" });
+        placeCtx.lastWord = w;
+        placeCtx.idx++;
+        if (placeCtx.idx < words.length) renderPlaceQ();
+        else renderAnalyzing();
+      });
+    });
+  }
+
+  function renderAnalyzing() {
+    $screen.innerHTML = `
+      <div class="onb analyzing">
+        <div class="onb-spinner">📊</div>
+        <h2>결과 분석 중...</h2>
+        <p class="onb-sub">딱 맞는 커리큘럼을 짜고 있어요</p>
+      </div>`;
+    setTimeout(() => renderPlaceResult(computePlacement(placeCtx.answers)), 1300);
+  }
+
+  // 쉬운→어려운 순서로 답을 훑어, 2번 연속 모르기 전까지 아는 가장 어려운 단어 위치로 레벨 산정
+  function computePlacement(answers) {
+    let lastKnown = 0, misses = 0;
+    for (const a of answers) {
+      if (a.known) { lastKnown = a.id; misses = 0; }
+      else { misses++; if (misses >= 2) break; }
+    }
+    const lv = LEVELS.find(l => lastKnown <= l.max) || LEVELS[LEVELS.length - 1];
+    const startId = Math.min(lastKnown + 1, WORDS.length);
+    const vocab = Math.max(30, Math.round(lastKnown / 50) * 50);
+    const totalDays = Math.ceil((WORDS.length - startId + 1) / lv.newPerDay);
+    return { key: lv.key, icon: lv.icon, label: lv.label, desc: lv.desc, vocab, startId, newPerDay: lv.newPerDay, totalDays };
+  }
+
+  function renderPlaceResult(p) {
+    const skipCount = p.startId - 1;
+    $screen.innerHTML = `
+      <div class="onb result">
+        <div class="onb-emoji pop">${p.icon}</div>
+        <div class="onb-sub">당신의 단어 레벨은</div>
+        <h2 class="onb-level">${p.label}</h2>
+        <div class="onb-vocab">예상 어휘량 <b>약 ${p.vocab.toLocaleString()}단어</b></div>
+        <p class="onb-desc">${esc(p.desc)}</p>
+        <div class="onb-plan">
+          <div class="onb-plan-row"><span>📅 하루 학습량</span><b>${p.newPerDay}단어</b></div>
+          <div class="onb-plan-row"><span>⏩ 건너뛰는 쉬운 단어</span><b>${skipCount.toLocaleString()}개</b></div>
+          <div class="onb-plan-row"><span>🏁 전체 코스</span><b>약 ${p.totalDays.toLocaleString()}일</b></div>
+        </div>
+        <button class="btn btn-primary btn-block" id="onb-go">이 커리큘럼으로 시작하기 🚀</button>
+        <button class="btn btn-ghost btn-block" id="onb-retry" style="margin-top:8px">다시 테스트</button>
+      </div>`;
+    document.getElementById("onb-go").addEventListener("click", () => {
+      SRS.applyPlacement(state, p); state = SRS.load(); finishOnboarding();
+    });
+    document.getElementById("onb-retry").addEventListener("click", renderOnboarding);
+  }
+
+  function finishOnboarding() {
+    document.body.classList.remove("onboarding");
+    goHomeTab();
   }
 
   // ===== 홈 화면 =====
@@ -461,6 +583,15 @@
       <div class="card">
         <div class="setting-row">
           <div>
+            <div class="card-title" style="font-size:15px">내 단어 레벨</div>
+            <div class="card-sub">${state.placement ? `${state.placement.icon} ${state.placement.label} · 예상 어휘량 약 ${Number(state.placement.vocab).toLocaleString()}단어` : "레벨 테스트 미완료"}</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="btn-retest">다시 테스트</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="setting-row">
+          <div>
             <div class="card-title" style="font-size:15px">학습 기록 초기화</div>
             <div class="card-sub">모든 진도가 삭제돼요 (단어 데이터는 유지)</div>
           </div>
@@ -477,6 +608,11 @@
       state.settings.newPerDay = Number(e.target.value);
       SRS.save(state);
     });
+    document.getElementById("btn-retest").addEventListener("click", () => {
+      SRS.clearOnboarding(state);
+      state = SRS.load();
+      renderOnboarding();
+    });
     document.getElementById("btn-reset").addEventListener("click", () => {
       if (confirm("정말 모든 학습 기록을 초기화할까요?")) {
         SRS.reset();
@@ -486,7 +622,9 @@
     });
   }
 
-  // ===== 단어장 (전체 공개 — 테마 선택 + 검색) =====
+  // ===== 단어장 (상황별 카테고리 → 단어 페이지) =====
+  let dictSel = null; // null = 카테고리 목록 화면, 아니면 { name, ids } = 단어 페이지
+
   function wordStatusBadge(id) {
     for (const b of state.batches) {
       if (b.wordIds.includes(id)) {
@@ -495,76 +633,110 @@
         return `<span class="badge badge-r1">학습중 ${done}/3</span>`;
       }
     }
+    if (id < ((state.settings && state.settings.startId) || 1)) return `<span class="badge badge-known">이미 알아요</span>`;
     return `<span class="badge badge-new">미학습</span>`;
   }
 
-  let dictTheme = "전체"; // 단어장에서 마지막으로 고른 테마 기억
+  function wordItemHtml(w) {
+    return `
+      <details class="word-item">
+        <summary>
+          <div class="wi-main">
+            <div class="wi-word">${esc(w.w)} <span class="wi-pron">${esc(w.p)}</span></div>
+            <div class="wi-mean">${esc(w.m)}</div>
+          </div>
+          ${wordStatusBadge(w.id)}
+        </summary>
+        <div class="wi-body">
+          ${w.ex.map(e => `
+            <div class="example">
+              <div class="en">${esc(e[0])} ${speakBtn(e[0], true)}</div>
+              <div class="ko">${esc(e[1])}</div>
+            </div>`).join("")}
+        </div>
+      </details>`;
+  }
 
   function renderWordList() {
     state = SRS.load();
-    const themedIds = new Set(THEMES.flatMap(t => t.ids));
-    const etcIds = WORDS.filter(w => !themedIds.has(w.id)).map(w => w.id);
-    const chipNames = ["전체", ...THEMES.map(t => t.name)];
-    if (etcIds.length > 0) chipNames.push("기타");
-    if (!chipNames.includes(dictTheme)) dictTheme = "전체";
+    if (dictSel) renderWordPage();
+    else renderWordIndex();
+  }
 
+  // 카테고리 목록 화면 (상황별 그룹 → 주제 카드)
+  function renderWordIndex() {
     $screen.innerHTML = `
-      <div class="greeting"><h2>단어장 📖</h2><p>총 ${WORDS.length}개 · 단어를 누르면 예문이 펼쳐져요</p></div>
-      <input type="search" id="word-search" class="search-input" placeholder="🔍 단어 또는 뜻으로 검색">
-      <div class="theme-chips">
-        ${chipNames.map(n => `<button class="chip ${n === dictTheme ? "active" : ""}" data-theme="${esc(n)}">${esc(n)}</button>`).join("")}
-      </div>
-      <p class="card-sub" id="word-count" style="margin-bottom:10px"></p>
+      <div class="greeting"><h2>단어장 📖</h2><p>주제를 고르면 그 단어만 모아서 보여줘요 · 총 ${WORDS.length.toLocaleString()}개</p></div>
+      <input type="search" id="word-search" class="search-input" placeholder="🔍 전체 단어에서 검색">
+      <div id="dict-body"></div>`;
+
+    const $search = document.getElementById("word-search");
+    const $body = document.getElementById("dict-body");
+
+    function openTheme(theme) { dictSel = theme; renderWordList(); }
+
+    function renderCategories() {
+      let html = `
+        <button class="cat-card all" data-all="1">
+          <span class="cat-emoji">📚</span>
+          <span class="cat-text"><span class="cat-name">전체 단어 보기</span><span class="cat-count">${WORDS.length.toLocaleString()}개</span></span>
+          <span class="cat-arrow">›</span>
+        </button>`;
+      for (const g of THEME_GROUPS) {
+        html += `<div class="cat-section">${esc(g.name)}</div><div class="cat-grid">`;
+        for (const t of g.themes) {
+          html += `
+            <button class="cat-card" data-theme="${esc(t.name)}">
+              <span class="cat-text"><span class="cat-name">${esc(t.name)}</span><span class="cat-count">${t.ids.length}개</span></span>
+              <span class="cat-arrow">›</span>
+            </button>`;
+        }
+        html += `</div>`;
+      }
+      $body.innerHTML = html;
+      $body.querySelectorAll(".cat-card").forEach(c => {
+        c.addEventListener("click", () => {
+          if (c.dataset.all) openTheme({ name: "전체 단어", ids: WORDS.map(w => w.id) });
+          else openTheme(THEMES.find(t => t.name === c.dataset.theme));
+        });
+      });
+    }
+
+    function renderSearch(q) {
+      const items = WORDS.filter(w => w.w.toLowerCase().includes(q) || w.m.toLowerCase().includes(q));
+      $body.innerHTML = `<p class="card-sub" style="margin:4px 0 10px">검색 결과 ${items.length}개</p>` +
+        (items.map(wordItemHtml).join("") || `<div class="empty"><div class="emoji">🔍</div>검색 결과가 없어요.</div>`);
+    }
+
+    $search.addEventListener("input", () => {
+      const q = $search.value.trim().toLowerCase();
+      if (q) renderSearch(q); else renderCategories();
+    });
+    renderCategories();
+  }
+
+  // 선택한 주제의 단어만 모아 보여주는 별도 페이지
+  function renderWordPage() {
+    const ids = new Set(dictSel.ids);
+    const all = WORDS.filter(w => ids.has(w.id));
+    $screen.innerHTML = `
+      <button class="back-btn" id="dict-back">← 단어장</button>
+      <div class="greeting"><h2>${esc(dictSel.name)}</h2><p>${all.length.toLocaleString()}개 · 단어를 누르면 예문이 펼쳐져요</p></div>
+      <input type="search" id="word-search" class="search-input" placeholder="🔍 이 주제 안에서 검색">
       <div id="word-list"></div>`;
 
     const $list = document.getElementById("word-list");
     const $search = document.getElementById("word-search");
-    const $count = document.getElementById("word-count");
-
-    function themeIdSet() {
-      if (dictTheme === "전체") return null;
-      if (dictTheme === "기타") return new Set(etcIds);
-      return new Set(THEMES.find(t => t.name === dictTheme).ids);
-    }
 
     function renderItems() {
-      const query = $search.value.trim().toLowerCase();
-      const tset = themeIdSet();
-      const items = WORDS.filter(w =>
-        (!tset || tset.has(w.id)) &&
-        (!query || w.w.toLowerCase().includes(query) || w.m.toLowerCase().includes(query))
-      );
-      $count.textContent = `${dictTheme} ${items.length}개`;
-      $list.innerHTML = items.map(w => `
-        <details class="word-item">
-          <summary>
-            <div class="wi-main">
-              <div class="wi-word">${esc(w.w)} <span class="wi-pron">${esc(w.p)}</span></div>
-              <div class="wi-mean">${esc(w.m)}</div>
-            </div>
-            ${wordStatusBadge(w.id)}
-          </summary>
-          <div class="wi-body">
-            ${w.ex.map(e => `
-              <div class="example">
-                <div class="en">${esc(e[0])} ${speakBtn(e[0], true)}</div>
-                <div class="ko">${esc(e[1])}</div>
-              </div>`).join("")}
-          </div>
-        </details>`).join("") || `<div class="empty"><div class="emoji">🔍</div>검색 결과가 없어요.</div>`;
+      const q = $search.value.trim().toLowerCase();
+      const items = all.filter(w => !q || w.w.toLowerCase().includes(q) || w.m.toLowerCase().includes(q));
+      $list.innerHTML = items.map(wordItemHtml).join("") || `<div class="empty"><div class="emoji">🔍</div>검색 결과가 없어요.</div>`;
     }
 
     renderItems();
     $search.addEventListener("input", renderItems);
-    document.querySelectorAll(".theme-chips .chip").forEach(chip => {
-      chip.addEventListener("click", () => {
-        dictTheme = chip.dataset.theme;
-        document.querySelectorAll(".theme-chips .chip").forEach(c =>
-          c.classList.toggle("active", c.dataset.theme === dictTheme)
-        );
-        renderItems();
-      });
-    });
+    document.getElementById("dict-back").addEventListener("click", () => { dictSel = null; renderWordList(); });
   }
 
   // ===== PWA 서비스워커 등록 =====
@@ -572,6 +744,8 @@
     navigator.serviceWorker.register("./sw.js").catch(() => {});
   }
 
-  // 시작
-  renderHome();
+  // 시작 — 첫 실행(레벨 테스트 전)이면 온보딩, 아니면 홈
+  state = SRS.load();
+  if (!state.onboarded) renderOnboarding();
+  else renderHome();
 })();
