@@ -26,10 +26,16 @@
     window.track = function (name, params) { if (GA_ON) gtag("event", name, params || {}); };
   </script>
 
+  <!-- Supabase (로그인 + 진도 클라우드 저장) — 프로젝트 설정 > API 에서 값 복사해 교체 -->
+  <script>
+    window.SB_URL = "https://zxapsgekpnfvlndfjzww.supabase.co"; // ← Project URL
+    window.SB_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4YXBzZ2VrcG5mdmxuZGZqend3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwMTgwNjUsImV4cCI6MjA5NzU5NDA2NX0.Rm_AvhAxiQhmGgUSElL-6ewpy0_u32QNFh3IugXvucw"; // ← anon public key (공개해도 안전)
+  </script>
+
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
-  <link rel="stylesheet" href="css/style.css?v=11">
+  <link rel="stylesheet" href="css/style.css?v=12">
 </head>
 <body>
   <div class="app">
@@ -65,8 +71,9 @@
     </nav>
   </div>
 
-  <script src="js/data.js?v=11"></script>
-  <script src="js/srs.js?v=11"></script>
-  <script src="js/app.js?v=11"></script>
+  <script src="js/data.js?v=12"></script>
+  <script src="js/srs.js?v=12"></script>
+  <script src="js/app.js?v=12"></script>
+  <script type="module" src="js/cloud.js?v=12"></script>
 </body>
 </html>

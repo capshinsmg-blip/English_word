@@ -23,11 +23,13 @@
 - `js/data.js` — 단어 데이터 (`WORDS` 배열: id, w=단어, p=발음, m=뜻, ex=예문[[en,ko]])
 - `js/srs.js` — 에빙하우스 스케줄 엔진 (`SRS` 모듈, localStorage 키: `ew_state_v1`)
 - `js/app.js` — UI 로직 (홈/학습/퀴즈/통계/설정)
+- `js/cloud.js` — Supabase 로그인 + 진도 클라우드 동기화 (ESM 모듈)
+- `supabase/schema.sql` — 진도 저장 테이블 + RLS (Supabase SQL Editor에서 1회 실행)
 - `manifest.json`, `sw.js`, `icons/` — PWA (홈화면 설치, 오프라인 지원)
 
 ## 규칙
 - 빌드 도구 없음 — 순수 HTML/CSS/JS 유지 (입문자 프로젝트)
-- 진도 데이터는 localStorage에만 저장 (서버 없음)
+- 진도 데이터는 localStorage(`ew_state_v1`)가 기본. 로그인 시 Supabase로 자동 동기화(아래 참고)
 - 커밋 메시지는 한국어 (`update: ...`)
 - UI 텍스트는 한국어
 - 광고 배너 자리는 `#ad-banner` (하단 고정) — 추후 영어회화 강의 광고 부착 예정
@@ -43,10 +45,20 @@
 - 추적 이벤트: `tab_view`, `learn_start`, `learn_complete`, `quiz_start`, `quiz_complete`(rate·perfect)
 - 자동 수집: 첫방문/세션/리텐션 등은 GA4 기본 제공
 
+## 로그인 / 클라우드 저장 (Supabase)
+- 설정값은 `index.html` 상단 `window.SB_URL` / `window.SB_ANON_KEY` 한 곳에서 관리 (placeholder면 비활성 → 앱은 로컬로 정상 작동)
+- 제공자: 구글 (카카오는 추후). `js/cloud.js`의 `window.Cloud.signInGoogle()` / `signInKakao()` / `signOut()` / `getUser()`
+- 동기화: `cloud.js`가 `SRS`의 진도 변경 메서드를 감싸 1.5초 debounce 후 `progress` 테이블에 upsert
+- 충돌 해결: 로그인/시작 시 로컬 vs 클라우드 중 **`xp`가 큰 쪽 채택**(진도 유실 방지). 클라우드가 최신이면 `window.AppUI.reload()`로 화면 갱신
+- 로그인 UI: 설정 화면 `accountCardHtml()` (미설정 시 자동 숨김), 상태 변화는 `cloud-auth` 이벤트로 갱신
+- DB: `supabase/schema.sql` (사용자당 1행 `progress(user_id, state jsonb, updated_at)`, RLS로 본인 행만 접근)
+
 ## 로드맵
 - [x] v0.1 뼈대: 학습/복습/퀴즈/통계/PWA
 - [x] 단어 발음 듣기 (Web Speech API — 단어/예문 🔊 버튼, 온라인 필요할 수 있음)
 - [x] 단어 데이터 확장 — 현재 3000개 (600일치, 테마 112종)
 - [x] 단어장 주제별 페이지 이동 + 가입 시 레벨 테스트/맞춤 커리큘럼
+- [x] GA4 애널리틱스 연동 (참여 이벤트 추적)
+- [~] 로그인 + 진도 클라우드 저장 (Supabase) — 구글 완료, 카카오 예정
 - [ ] 알림 (복습 시간 푸시)
 - [ ] 광고 영역 실연동

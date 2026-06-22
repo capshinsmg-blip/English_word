@@ -119,6 +119,12 @@
     renderHome();
   }
 
+  // 로그인/로그아웃 등 클라우드 상태가 바뀌면, 설정 화면을 보고 있을 때 다시 그려준다
+  window.addEventListener("cloud-auth", () => {
+    const active = document.querySelector(".tab.active");
+    if (active && active.dataset.tab === "settings") renderSettings();
+  });
+
   // ===== 레벨 테스트 (가입/첫 실행 온보딩) =====
   // 단어 id가 클수록 어렵고 덜 빈출 → 난이도 사다리로 10개를 뽑아 자가진단
   const PLACEMENT_LADDER = [25, 130, 300, 480, 700, 980, 1350, 1750, 2250, 2800];
@@ -564,11 +570,38 @@
     $screen.innerHTML = html;
   }
 
+  // 로그인/클라우드 저장 카드 (Supabase 미설정 시 자동 숨김)
+  function accountCardHtml() {
+    const C = window.Cloud;
+    if (!C || !C.enabled) return "";
+    const u = C.getUser();
+    if (u) {
+      const name = (u.user_metadata && (u.user_metadata.name || u.user_metadata.full_name)) || u.email || "사용자";
+      return `
+        <div class="card">
+          <div class="setting-row">
+            <div>
+              <div class="card-title" style="font-size:15px">☁️ 클라우드 저장 켜짐</div>
+              <div class="card-sub">${esc(name)} · 진도가 자동으로 저장돼요</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="btn-logout">로그아웃</button>
+          </div>
+        </div>`;
+    }
+    return `
+      <div class="card">
+        <div class="card-title" style="font-size:15px">☁️ 진도 클라우드 저장</div>
+        <div class="card-sub" style="margin:6px 0 12px">로그인하면 기기를 바꿔도 학습 진도가 그대로 이어져요.</div>
+        <button class="btn btn-primary btn-block" id="btn-login-google">구글로 로그인</button>
+      </div>`;
+  }
+
   // ===== 설정 화면 =====
   function renderSettings() {
     state = SRS.load();
     $screen.innerHTML = `
       <div class="greeting"><h2>설정 ⚙️</h2><p>학습 방식을 조절해요</p></div>
+      ${accountCardHtml()}
       <div class="card">
         <div class="setting-row">
           <div>
@@ -603,6 +636,14 @@
           하루보카 v0.1<br>에빙하우스 망각곡선 기반 영어회화 단어암기
         </div>
       </div>`;
+
+    const btnGoogle = document.getElementById("btn-login-google");
+    if (btnGoogle) btnGoogle.addEventListener("click", () => window.Cloud.signInGoogle());
+    const btnLogout = document.getElementById("btn-logout");
+    if (btnLogout) btnLogout.addEventListener("click", async () => {
+      await window.Cloud.signOut();
+      renderSettings();
+    });
 
     document.getElementById("sel-perday").addEventListener("change", e => {
       state.settings.newPerDay = Number(e.target.value);
@@ -743,6 +784,16 @@
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
   }
+
+  // 클라우드(cloud.js)에서 더 최신 진도를 받아왔을 때 호출 — 현재 상태로 화면을 다시 그린다
+  window.AppUI = {
+    reload() {
+      state = SRS.load();
+      updateStreak();
+      if (!state.onboarded) renderOnboarding();
+      else goHomeTab();
+    }
+  };
 
   // 시작 — 첫 실행(레벨 테스트 전)이면 온보딩, 아니면 홈
   state = SRS.load();
