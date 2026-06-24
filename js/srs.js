@@ -26,7 +26,7 @@ const SRS = (() => {
   }
 
   function defaultState() {
-    return { batches: [], activity: [], settings: { newPerDay: 5, startId: 1 }, xp: 0, perfect: 0, best: 0, onboarded: false, placement: null };
+    return { batches: [], activity: [], settings: { newPerDay: 5, startId: 1, selectedThemes: [] }, xp: 0, perfect: 0, best: 0, onboarded: false, placement: null };
   }
 
   function load() {
@@ -38,6 +38,7 @@ const SRS = (() => {
       if (Array.isArray(raw.activity)) s.activity = raw.activity;
       if (raw.settings && raw.settings.newPerDay) s.settings.newPerDay = raw.settings.newPerDay;
       if (raw.settings && raw.settings.startId) s.settings.startId = raw.settings.startId;
+      if (raw.settings && Array.isArray(raw.settings.selectedThemes)) s.settings.selectedThemes = raw.settings.selectedThemes;
       // 레벨 시스템 도입 전 데이터는 기존 진도로 경험치를 보정해줌
       s.xp = typeof raw.xp === "number" ? raw.xp : estimateXp(s);
       s.perfect = typeof raw.perfect === "number" ? raw.perfect : 0;
@@ -86,7 +87,17 @@ const SRS = (() => {
   function nextNewWords(s) {
     const used = new Set(s.batches.flatMap(b => b.wordIds));
     const startId = (s.settings && s.settings.startId) || 1;
-    return WORDS.filter(w => w.id >= startId && !used.has(w.id)).slice(0, s.settings.newPerDay);
+    let pool = WORDS.filter(w => w.id >= startId && !used.has(w.id));
+    const sel = s.settings && s.settings.selectedThemes;
+    if (sel && sel.length > 0) {
+      const allowed = new Set();
+      for (const t of THEMES) {
+        if (sel.includes(t.name)) t.ids.forEach(id => allowed.add(id));
+      }
+      const filtered = pool.filter(w => allowed.has(w.id));
+      if (filtered.length > 0) pool = filtered;
+    }
+    return pool.slice(0, s.settings.newPerDay);
   }
 
   // 오늘 이미 새 단어를 외웠는가

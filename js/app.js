@@ -622,6 +622,24 @@
           <button class="btn btn-ghost btn-sm" id="btn-retest">다시 테스트</button>
         </div>
       </div>
+      <div class="card" id="card-theme-filter">
+        <div class="card-title" style="font-size:15px;margin-bottom:8px">📂 카테고리 필터</div>
+        <div class="card-sub" style="margin-bottom:12px">선택한 카테고리의 단어만 새 단어로 출제돼요. 비우면 전체 출제</div>
+        ${THEME_GROUPS.map(group => `
+          <div style="margin-bottom:10px">
+            <div style="font-weight:600;font-size:13px;color:var(--primary);margin-bottom:4px">${group.name}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+              ${group.themes.map(t => {
+                const checked = (state.settings.selectedThemes || []).includes(t.name) ? "checked" : "";
+                return `<label style="display:flex;align-items:center;gap:4px;font-size:12px;background:var(--surface2);padding:3px 8px;border-radius:20px;cursor:pointer"><input type="checkbox" class="theme-cb" data-name="${t.name.replace(/"/g,'&quot;')}" ${checked} style="margin:0">${t.name}</label>`;
+              }).join("")}
+            </div>
+          </div>`).join("")}
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" id="btn-theme-all">전체 선택</button>
+          <button class="btn btn-ghost btn-sm" id="btn-theme-none">전체 해제</button>
+        </div>
+      </div>
       <div class="card">
         <div class="setting-row">
           <div>
@@ -660,6 +678,21 @@
         state = SRS.load();
         goHomeTab();
       }
+    });
+
+    function saveThemeFilter() {
+      const checked = [...document.querySelectorAll(".theme-cb:checked")].map(el => el.dataset.name);
+      state.settings.selectedThemes = checked;
+      SRS.save(state);
+    }
+    document.querySelectorAll(".theme-cb").forEach(cb => cb.addEventListener("change", saveThemeFilter));
+    document.getElementById("btn-theme-all").addEventListener("click", () => {
+      document.querySelectorAll(".theme-cb").forEach(cb => { cb.checked = true; });
+      saveThemeFilter();
+    });
+    document.getElementById("btn-theme-none").addEventListener("click", () => {
+      document.querySelectorAll(".theme-cb").forEach(cb => { cb.checked = false; });
+      saveThemeFilter();
     });
   }
 
