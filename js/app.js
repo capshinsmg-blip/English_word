@@ -122,9 +122,13 @@
   // 로그인/로그아웃 등 클라우드 상태가 바뀌면 처리
   window.addEventListener("cloud-auth", () => {
     if (!localStorage.getItem("ew_welcome_v1")) {
-      // 신규 사용자 OAuth 복귀 처리
       const u = window.Cloud && window.Cloud.getUser();
-      if (u) handlePostLogin();
+      if (u) {
+        handlePostLogin();
+      } else if (document.querySelector(".auth-root")) {
+        // cloud.js 비동기 로드 완료 — 환영화면 재렌더해서 구글 버튼 표시
+        renderWelcome();
+      }
       return;
     }
     const active = document.querySelector(".tab.active");
@@ -254,34 +258,242 @@
     else goHomeTab();
   }
 
-  // ===== 환영 화면 (최초 1회) =====
+  // ===== 인증 공통 유틸 =====
+  const GOOGLE_SVG = `<svg width="18" height="18" viewBox="0 0 18 18" style="flex-shrink:0"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/><path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/></svg>`;
+  const EYE_SVG  = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+  const EYE_OFF  = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+
+  function mapAuthError(msg) {
+    if (!msg) return "오류가 발생했어요. 다시 시도해주세요";
+    if (msg.includes("Invalid login credentials"))      return "이메일 또는 비밀번호가 올바르지 않아요";
+    if (msg.includes("Email not confirmed"))            return "이메일 인증이 필요해요. 받은 편지함을 확인해주세요";
+    if (msg.includes("User already registered"))        return "이미 가입된 이메일이에요. 로그인해주세요";
+    if (msg.includes("Password should be at least"))   return "비밀번호는 6자 이상이어야 해요";
+    if (msg.includes("Unable to validate email"))      return "올바른 이메일 주소를 입력해주세요";
+    if (msg.includes("cloud_disabled"))                return "로그인 기능을 사용할 수 없어요";
+    if (msg.includes("rate limit"))                    return "잠시 후 다시 시도해주세요";
+    return "오류가 발생했어요. 다시 시도해주세요";
+  }
+
+  function togglePwVisibility(inputId, btnEl) {
+    const input = document.getElementById(inputId);
+    const show = input.type === "password";
+    input.type = show ? "text" : "password";
+    btnEl.innerHTML = show ? EYE_OFF : EYE_SVG;
+  }
+
+  // ===== 환영 화면 (최초 1회) — Duolingo·Notion 레퍼런스 기반 =====
   function renderWelcome() {
     document.body.classList.add("onboarding");
     const cloudOn = window.Cloud && window.Cloud.enabled;
     $screen.innerHTML = `
-      <div class="welcome-screen">
-        <img src="icons/icon-192.png" class="welcome-icon" alt="하루보카">
-        <h1 class="welcome-title">하루보카</h1>
-        <p class="welcome-sub">에빙하우스 망각곡선으로<br>영어 단어를 효율적으로 외워요</p>
-        <div class="welcome-feats">
-          <div class="welcome-feat"><span>🧠</span>과학적 복습 스케줄</div>
-          <div class="welcome-feat"><span>📚</span>4,000개 회화 단어</div>
-          <div class="welcome-feat"><span>🔔</span>매일 알림으로 습관 형성</div>
+      <div class="auth-root">
+        <div class="auth-hero">
+          <img src="icons/icon-192.png" class="auth-hero-icon" alt="하루보카">
+          <h1 class="auth-hero-title">하루보카</h1>
+          <p class="auth-hero-sub">에빙하우스 망각곡선으로<br>영어 단어를 효율적으로 외워요</p>
+          <div class="auth-hero-pills">
+            <span>🧠 과학적 복습</span><span>📚 4,000 단어</span><span>🔔 맞춤 알림</span>
+          </div>
         </div>
-        ${cloudOn ? `<button class="btn btn-google-login btn-block" id="btn-welcome-google">
-          <svg width="18" height="18" viewBox="0 0 18 18" style="flex-shrink:0"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/><path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/></svg>
-          구글로 시작하기
-        </button>` : ""}
-        <button class="btn btn-outline btn-block" id="btn-welcome-guest" style="margin-top:10px">비회원으로 시작</button>
+        <div class="auth-sheet">
+          ${cloudOn ? `
+            <button class="btn btn-google-login btn-block" id="btn-welcome-google">
+              ${GOOGLE_SVG} 구글로 계속하기
+            </button>
+            <div class="auth-divider"><span>또는</span></div>
+          ` : ""}
+          <button class="btn btn-primary btn-block" id="btn-to-login">이메일로 로그인</button>
+          <button class="btn btn-outline btn-block" id="btn-to-signup" style="margin-top:10px">회원가입</button>
+          <button class="btn btn-ghost btn-block auth-guest-btn" id="btn-welcome-guest">비회원으로 시작</button>
+        </div>
       </div>`;
-    if (cloudOn) {
-      document.getElementById("btn-welcome-google").addEventListener("click", () => window.Cloud.signInGoogle());
-    }
+
+    if (cloudOn) document.getElementById("btn-welcome-google").addEventListener("click", () => window.Cloud.signInGoogle());
+    document.getElementById("btn-to-login").addEventListener("click", renderLogin);
+    document.getElementById("btn-to-signup").addEventListener("click", renderSignup);
     document.getElementById("btn-welcome-guest").addEventListener("click", () => {
       localStorage.setItem("ew_welcome_v1", "guest");
       document.body.classList.remove("onboarding");
       afterWelcome();
     });
+  }
+
+  // ===== 이메일 로그인 =====
+  function renderLogin() {
+    const cloudOn = window.Cloud && window.Cloud.enabled;
+    $screen.innerHTML = `
+      <div class="auth-form-screen">
+        <button class="auth-back" id="auth-back">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div class="auth-form-top">
+          <div class="auth-form-emoji">🔑</div>
+          <h2 class="auth-form-title">로그인</h2>
+          <p class="auth-form-sub">하루보카 계정으로 로그인해요</p>
+        </div>
+        ${cloudOn ? `
+          <button class="btn btn-google-login btn-block" id="login-google" style="margin-bottom:16px">
+            ${GOOGLE_SVG} 구글로 계속하기
+          </button>
+          <div class="auth-divider"><span>또는 이메일로</span></div>
+        ` : ""}
+        <div class="auth-fields">
+          <div class="auth-field">
+            <label class="auth-label">이메일</label>
+            <input type="email" id="login-email" class="auth-input" placeholder="example@email.com" autocomplete="email">
+          </div>
+          <div class="auth-field">
+            <label class="auth-label">비밀번호</label>
+            <div class="auth-input-row">
+              <input type="password" id="login-pw" class="auth-input" placeholder="비밀번호" autocomplete="current-password">
+              <button type="button" class="auth-eye" id="login-eye">${EYE_SVG}</button>
+            </div>
+          </div>
+          <div id="login-error" class="auth-error"></div>
+          <button class="btn btn-primary btn-block" id="login-submit" style="margin-top:4px">로그인</button>
+          <button type="button" class="auth-text-btn" id="login-reset">비밀번호를 잊으셨나요?</button>
+        </div>
+        <div class="auth-switch">계정이 없으신가요? <button class="auth-link" id="to-signup">회원가입</button></div>
+      </div>`;
+
+    document.getElementById("auth-back").onclick = renderWelcome;
+    if (cloudOn) document.getElementById("login-google").onclick = () => window.Cloud.signInGoogle();
+    document.getElementById("to-signup").onclick = renderSignup;
+    document.getElementById("login-eye").onclick = function() { togglePwVisibility("login-pw", this); };
+
+    document.getElementById("login-reset").onclick = async () => {
+      const email = document.getElementById("login-email").value.trim();
+      const errEl = document.getElementById("login-error");
+      if (!email) { errEl.textContent = "이메일을 먼저 입력해주세요"; errEl.className = "auth-error"; return; }
+      const r = await window.Cloud.resetPasswordForEmail(email);
+      errEl.textContent = r.ok ? "비밀번호 재설정 링크를 이메일로 보냈어요 ✓" : "이메일 전송에 실패했어요";
+      errEl.className = r.ok ? "auth-error ok" : "auth-error";
+    };
+
+    document.getElementById("login-submit").onclick = async () => {
+      const email = document.getElementById("login-email").value.trim();
+      const pw    = document.getElementById("login-pw").value;
+      const errEl = document.getElementById("login-error");
+      const btn   = document.getElementById("login-submit");
+      errEl.textContent = "";
+      if (!email || !pw) { errEl.textContent = "이메일과 비밀번호를 입력해주세요"; return; }
+      btn.disabled = true; btn.textContent = "로그인 중...";
+      const r = await window.Cloud.signInWithEmail(email, pw);
+      if (!r.ok) { errEl.textContent = mapAuthError(r.error); btn.disabled = false; btn.textContent = "로그인"; }
+      // 성공 시 cloud-auth 이벤트가 처리함
+    };
+
+    ["login-email", "login-pw"].forEach(id =>
+      document.getElementById(id).addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("login-submit").click(); })
+    );
+  }
+
+  // ===== 이메일 회원가입 =====
+  function renderSignup() {
+    const cloudOn = window.Cloud && window.Cloud.enabled;
+    $screen.innerHTML = `
+      <div class="auth-form-screen">
+        <button class="auth-back" id="auth-back">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div class="auth-form-top">
+          <div class="auth-form-emoji">✉️</div>
+          <h2 class="auth-form-title">회원가입</h2>
+          <p class="auth-form-sub">이메일로 하루보카를 시작해요</p>
+        </div>
+        ${cloudOn ? `
+          <button class="btn btn-google-login btn-block" id="signup-google" style="margin-bottom:16px">
+            ${GOOGLE_SVG} 구글로 가입하기
+          </button>
+          <div class="auth-divider"><span>또는 이메일로</span></div>
+        ` : ""}
+        <div class="auth-fields">
+          <div class="auth-field">
+            <label class="auth-label">이메일</label>
+            <input type="email" id="signup-email" class="auth-input" placeholder="example@email.com" autocomplete="email">
+          </div>
+          <div class="auth-field">
+            <label class="auth-label">비밀번호 <span class="auth-label-hint">(6자 이상)</span></label>
+            <div class="auth-input-row">
+              <input type="password" id="signup-pw" class="auth-input" placeholder="비밀번호" autocomplete="new-password">
+              <button type="button" class="auth-eye" id="signup-eye">${EYE_SVG}</button>
+            </div>
+            <div class="pw-strength-wrap" id="pw-strength-wrap" style="display:none">
+              <div class="pw-strength-bar"><div class="pw-strength-fill" id="pw-strength-fill"></div></div>
+              <span class="pw-strength-label" id="pw-strength-label"></span>
+            </div>
+          </div>
+          <div class="auth-field">
+            <label class="auth-label">비밀번호 확인</label>
+            <div class="auth-input-row">
+              <input type="password" id="signup-pw2" class="auth-input" placeholder="비밀번호 재입력" autocomplete="new-password">
+              <button type="button" class="auth-eye" id="signup-eye2">${EYE_SVG}</button>
+            </div>
+          </div>
+          <div id="signup-error" class="auth-error"></div>
+          <button class="btn btn-primary btn-block" id="signup-submit" style="margin-top:4px">회원가입</button>
+        </div>
+        <div class="auth-switch">이미 계정이 있으신가요? <button class="auth-link" id="to-login">로그인</button></div>
+      </div>`;
+
+    document.getElementById("auth-back").onclick = renderWelcome;
+    if (cloudOn) document.getElementById("signup-google").onclick = () => window.Cloud.signInGoogle();
+    document.getElementById("to-login").onclick = renderLogin;
+    document.getElementById("signup-eye").onclick  = function() { togglePwVisibility("signup-pw", this); };
+    document.getElementById("signup-eye2").onclick = function() { togglePwVisibility("signup-pw2", this); };
+
+    // 비밀번호 강도
+    document.getElementById("signup-pw").addEventListener("input", () => {
+      const val = document.getElementById("signup-pw").value;
+      const wrap = document.getElementById("pw-strength-wrap");
+      if (!val) { wrap.style.display = "none"; return; }
+      wrap.style.display = "flex";
+      const str = val.length >= 12 && /[A-Z]/.test(val) && /[0-9]/.test(val) ? 3 :
+                  val.length >= 8 ? 2 : val.length >= 6 ? 1 : 0;
+      const colors = ["#ef5350","#fb8c00","#43a047","#1b5e20"];
+      const labels = ["약함","보통","강함","매우 강함"];
+      document.getElementById("pw-strength-fill").style.cssText = `width:${(str+1)*25}%;background:${colors[str]}`;
+      const lbl = document.getElementById("pw-strength-label");
+      lbl.textContent = labels[str]; lbl.style.color = colors[str];
+    });
+
+    document.getElementById("signup-submit").onclick = async () => {
+      const email = document.getElementById("signup-email").value.trim();
+      const pw    = document.getElementById("signup-pw").value;
+      const pw2   = document.getElementById("signup-pw2").value;
+      const errEl = document.getElementById("signup-error");
+      const btn   = document.getElementById("signup-submit");
+      errEl.textContent = "";
+      if (!email || !pw)  { errEl.textContent = "이메일과 비밀번호를 입력해주세요"; return; }
+      if (pw !== pw2)     { errEl.textContent = "비밀번호가 일치하지 않아요"; return; }
+      if (pw.length < 6)  { errEl.textContent = "비밀번호는 6자 이상이어야 해요"; return; }
+      btn.disabled = true; btn.textContent = "가입 중...";
+      const r = await window.Cloud.signUpWithEmail(email, pw);
+      if (r.ok) {
+        if (r.needsConfirmation) renderEmailConfirm(email);
+        // 확인 불필요 시 cloud-auth 이벤트가 처리함
+      } else {
+        errEl.textContent = mapAuthError(r.error);
+        btn.disabled = false; btn.textContent = "회원가입";
+      }
+    };
+  }
+
+  // ===== 이메일 인증 안내 =====
+  function renderEmailConfirm(email) {
+    $screen.innerHTML = `
+      <div class="auth-form-screen">
+        <div class="auth-confirm-wrap">
+          <div class="auth-confirm-icon">📧</div>
+          <h2 class="auth-form-title">이메일을 확인해주세요</h2>
+          <p class="auth-confirm-email">${esc(email)}</p>
+          <p class="auth-confirm-desc">위 주소로 인증 링크를 보냈어요.<br>링크를 클릭하면 가입이 완료돼요.</p>
+          <div class="auth-confirm-hint">📬 이메일이 안 보이면 스팸함도 확인해보세요</div>
+          <button class="btn btn-outline btn-block" id="back-to-welcome" style="margin-top:24px">돌아가기</button>
+        </div>
+      </div>`;
+    document.getElementById("back-to-welcome").onclick = renderWelcome;
   }
 
   async function handlePostLogin() {

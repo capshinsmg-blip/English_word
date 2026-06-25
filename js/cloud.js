@@ -92,6 +92,26 @@ window.Cloud = {
   getUser() { return user; },
   signInGoogle() { if (sb) sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: REDIRECT } }); },
   signInKakao() { if (sb) sb.auth.signInWithOAuth({ provider: "kakao", options: { redirectTo: REDIRECT } }); },
+  async signInWithEmail(email, password) {
+    if (!sb) return { ok: false, error: "cloud_disabled" };
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  },
+  async signUpWithEmail(email, password) {
+    if (!sb) return { ok: false, error: "cloud_disabled" };
+    const { data, error } = await sb.auth.signUp({
+      email, password,
+      options: { emailRedirectTo: REDIRECT }
+    });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, needsConfirmation: !data.session };
+  },
+  async resetPasswordForEmail(email) {
+    if (!sb) return { ok: false };
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: REDIRECT });
+    return { ok: !error };
+  },
   async signOut() {
     if (sb) await sb.auth.signOut();
     localStorage.removeItem("ew_nick_v1");
