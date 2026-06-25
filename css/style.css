@@ -722,3 +722,89 @@ body.onboarding .ad-banner { display: none; }
   font-weight: 700;
   box-shadow: 0 2px 8px rgba(150, 123, 217, 0.35);
 }
+
+/* ===== 환영 화면 ===== */
+.welcome-screen {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 32px 24px 40px; min-height: 100vh; text-align: center;
+}
+.welcome-icon { width: 88px; height: 88px; border-radius: 22px; margin-bottom: 16px; box-shadow: 0 4px 16px rgba(150,123,217,.3); }
+.welcome-title { font-size: 28px; font-weight: 800; color: var(--primary); margin-bottom: 8px; }
+.welcome-sub { font-size: 15px; color: var(--text-sub); line-height: 1.6; margin-bottom: 28px; }
+.welcome-feats { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-bottom: 32px; }
+.welcome-feat { display: flex; align-items: center; gap: 10px; background: var(--surface); border-radius: 10px; padding: 12px 14px; font-size: 14px; color: var(--text); }
+.welcome-feat span { font-size: 20px; }
+.btn-google-login {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  background: #fff; color: #3c4043; border: 1.5px solid #dadce0;
+  font-weight: 600; font-size: 15px;
+}
+.btn-google-login:hover { background: #f8f9fa; }
+
+/* ===== 닉네임 설정 ===== */
+.nickname-screen {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 40px 24px; text-align: center;
+}
+.nickname-emoji { font-size: 48px; margin-bottom: 16px; }
+.nickname-screen h2 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+.nickname-sub { font-size: 14px; color: var(--text-sub); line-height: 1.6; margin-bottom: 24px; }
+.nickname-input-wrap { width: 100%; margin-bottom: 16px; }
+.nickname-input {
+  width: 100%; padding: 13px 16px; font-size: 16px;
+  border: 1.5px solid var(--border); border-radius: 12px;
+  background: var(--surface); color: var(--text); outline: none;
+}
+.nickname-input:focus { border-color: var(--primary); }
+.nick-status { font-size: 13px; margin-top: 6px; min-height: 18px; text-align: left; }
+.nick-status.ok { color: #2e7d32; }
+.nick-status.error { color: #c62828; }
+.nick-status.checking { color: var(--text-sub); }
+
+/* ===== 튜토리얼 ===== */
+.tutorial-screen {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 28px 24px 40px; min-height: 100vh; text-align: center;
+}
+.tut-dots { display: flex; gap: 7px; margin-bottom: 28px; }
+.tut-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); transition: background .2s; }
+.tut-dot.on { background: var(--primary); width: 22px; border-radius: 4px; }
+.tut-emoji { font-size: 52px; margin-bottom: 14px; }
+.tut-title { font-size: 19px; font-weight: 700; margin-bottom: 10px; }
+.tut-body { font-size: 14px; color: var(--text-sub); line-height: 1.7; margin-bottom: 20px; }
+.tut-btns { width: 100%; margin-top: auto; padding-top: 20px; }
+
+/* 망각곡선 */
+.tut-curve { width: 100%; max-width: 280px; margin: 0 auto 8px; }
+.tut-curve svg { width: 100%; height: auto; }
+
+/* 복습 타임라인 */
+.tut-timeline { display: flex; align-items: center; justify-content: center; gap: 0; flex-wrap: nowrap; overflow-x: auto; padding: 8px 0; }
+.tl-node { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.tl-node span.tl-day { font-size: 11px; font-weight: 700; color: var(--primary); }
+.tl-node span.tl-lbl { font-size: 10px; color: var(--text-sub); }
+.tl-node.new .tl-day::before, .tl-node.r1 .tl-day::before,
+.tl-node.r2 .tl-day::before, .tl-node.r3 .tl-day::before,
+.tl-node.grad .tl-day::before { content: ""; }
+.tl-node { background: var(--surface); border: 2px solid var(--primary); border-radius: 10px; padding: 6px 8px; min-width: 42px; }
+.tl-node.grad { border-color: #f0c040; }
+.tl-line { width: 12px; height: 2px; background: var(--border); flex-shrink: 0; }
+
+/* 카테고리 칩 */
+.tut-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; padding: 8px 0; }
+.tut-chip { padding: 7px 14px; border-radius: 20px; font-size: 13px; background: var(--surface); border: 1.5px solid var(--border); color: var(--text-sub); }
+.tut-chip.on { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
+
+/* 설정 박스 */
+.tut-setting-box { width: 100%; background: var(--surface); border-radius: 12px; padding: 16px; }
+.tut-setting-row { display: flex; justify-content: space-between; align-items: center; font-size: 14px; margin-bottom: 8px; }
+.tut-setting-row strong { color: var(--primary); }
+.tut-setting-tip { font-size: 12px; color: var(--text-sub); text-align: center; }
+.tut-setting-tip b { color: var(--primary); }
+
+/* 알림 목업 */
+.tut-notif-mock { width: 100%; background: #f2f2f7; border-radius: 14px; padding: 12px 14px; text-align: left; }
+.tut-notif-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.tut-notif-app { font-size: 12px; font-weight: 600; color: #555; }
+.tut-notif-time { font-size: 11px; color: #999; }
+.tut-notif-body { font-size: 14px; color: #222; line-height: 1.5; }

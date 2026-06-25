@@ -119,8 +119,14 @@
     renderHome();
   }
 
-  // 로그인/로그아웃 등 클라우드 상태가 바뀌면, 설정 화면을 보고 있을 때 다시 그려준다
+  // 로그인/로그아웃 등 클라우드 상태가 바뀌면 처리
   window.addEventListener("cloud-auth", () => {
+    if (!localStorage.getItem("ew_welcome_v1")) {
+      // 신규 사용자 OAuth 복귀 처리
+      const u = window.Cloud && window.Cloud.getUser();
+      if (u) handlePostLogin();
+      return;
+    }
     const active = document.querySelector(".tab.active");
     if (active && active.dataset.tab === "settings") renderSettings();
   });
@@ -244,7 +250,233 @@
 
   function finishOnboarding() {
     document.body.classList.remove("onboarding");
-    goHomeTab();
+    if (!localStorage.getItem("ew_tutorial_v1")) renderTutorial(0);
+    else goHomeTab();
+  }
+
+  // ===== 환영 화면 (최초 1회) =====
+  function renderWelcome() {
+    document.body.classList.add("onboarding");
+    const cloudOn = window.Cloud && window.Cloud.enabled;
+    $screen.innerHTML = `
+      <div class="welcome-screen">
+        <img src="icons/icon-192.png" class="welcome-icon" alt="하루보카">
+        <h1 class="welcome-title">하루보카</h1>
+        <p class="welcome-sub">에빙하우스 망각곡선으로<br>영어 단어를 효율적으로 외워요</p>
+        <div class="welcome-feats">
+          <div class="welcome-feat"><span>🧠</span>과학적 복습 스케줄</div>
+          <div class="welcome-feat"><span>📚</span>4,000개 회화 단어</div>
+          <div class="welcome-feat"><span>🔔</span>매일 알림으로 습관 형성</div>
+        </div>
+        ${cloudOn ? `<button class="btn btn-google-login btn-block" id="btn-welcome-google">
+          <svg width="18" height="18" viewBox="0 0 18 18" style="flex-shrink:0"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/><path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/></svg>
+          구글로 시작하기
+        </button>` : ""}
+        <button class="btn btn-outline btn-block" id="btn-welcome-guest" style="margin-top:10px">비회원으로 시작</button>
+      </div>`;
+    if (cloudOn) {
+      document.getElementById("btn-welcome-google").addEventListener("click", () => window.Cloud.signInGoogle());
+    }
+    document.getElementById("btn-welcome-guest").addEventListener("click", () => {
+      localStorage.setItem("ew_welcome_v1", "guest");
+      document.body.classList.remove("onboarding");
+      afterWelcome();
+    });
+  }
+
+  async function handlePostLogin() {
+    const nick = window.Cloud && window.Cloud.enabled ? await window.Cloud.getNickname() : null;
+    if (nick === null && window.Cloud && window.Cloud.enabled && window.Cloud.getUser()) {
+      renderNicknameSetup(false);
+    } else {
+      localStorage.setItem("ew_welcome_v1", "google");
+      document.body.classList.remove("onboarding");
+      afterWelcome();
+    }
+  }
+
+  function afterWelcome() {
+    state = SRS.load();
+    if (!state.onboarded) renderOnboarding();
+    else if (!localStorage.getItem("ew_tutorial_v1")) renderTutorial(0);
+    else goHomeTab();
+  }
+
+  // ===== 닉네임 설정 =====
+  function renderNicknameSetup(fromSettings = false) {
+    document.body.classList.add("onboarding");
+    $screen.innerHTML = `
+      <div class="nickname-screen">
+        <div class="nickname-emoji">✏️</div>
+        <h2>닉네임을 설정해주세요</h2>
+        <p class="nickname-sub">하루보카에서 사용할 이름이에요<br>알림을 보낼 때도 이 이름으로 불러드려요 🔔</p>
+        <div class="nickname-input-wrap">
+          <input type="text" id="nick-input" class="nickname-input"
+            placeholder="2~12자 (한글·영문·숫자)" maxlength="12" autocomplete="off">
+          <div id="nick-status" class="nick-status"></div>
+        </div>
+        <button class="btn btn-primary btn-block" id="nick-confirm" disabled>확인</button>
+        <button class="btn btn-ghost btn-block" id="nick-skip" style="margin-top:8px">
+          ${fromSettings ? "취소" : "나중에 설정"}
+        </button>
+      </div>`;
+
+    const input = document.getElementById("nick-input");
+    const status = document.getElementById("nick-status");
+    const confirmBtn = document.getElementById("nick-confirm");
+    let checkTimer;
+
+    input.addEventListener("input", () => {
+      const val = input.value.trim();
+      clearTimeout(checkTimer);
+      confirmBtn.disabled = true;
+      if (val.length < 2) {
+        status.textContent = val.length ? "2자 이상 입력해주세요" : "";
+        status.className = "nick-status error";
+        return;
+      }
+      if (!/^[가-힣a-zA-Z0-9]+$/.test(val)) {
+        status.textContent = "한글, 영문, 숫자만 사용 가능해요";
+        status.className = "nick-status error";
+        return;
+      }
+      status.textContent = "확인 중...";
+      status.className = "nick-status checking";
+      checkTimer = setTimeout(async () => {
+        const avail = await window.Cloud.checkNicknameAvailable(val);
+        if (avail) {
+          status.textContent = "✓ 사용 가능한 닉네임이에요";
+          status.className = "nick-status ok";
+          confirmBtn.disabled = false;
+        } else {
+          status.textContent = "이미 사용 중인 닉네임이에요";
+          status.className = "nick-status error";
+        }
+      }, 600);
+    });
+
+    confirmBtn.addEventListener("click", async () => {
+      const val = input.value.trim();
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = "저장 중...";
+      const ok = await window.Cloud.setNickname(val);
+      if (ok) {
+        if (fromSettings) { document.body.classList.remove("onboarding"); renderSettings(); }
+        else { localStorage.setItem("ew_welcome_v1", "google"); document.body.classList.remove("onboarding"); afterWelcome(); }
+      } else {
+        status.textContent = "저장에 실패했어요. 다시 시도해주세요";
+        status.className = "nick-status error";
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = "확인";
+      }
+    });
+
+    document.getElementById("nick-skip").addEventListener("click", () => {
+      if (fromSettings) { document.body.classList.remove("onboarding"); renderSettings(); }
+      else { localStorage.setItem("ew_welcome_v1", "google"); document.body.classList.remove("onboarding"); afterWelcome(); }
+    });
+  }
+
+  // ===== 튜토리얼 (5단계) =====
+  const TUTORIAL_STEPS = [
+    {
+      emoji: "🧠", title: "왜 반복 학습이 필요할까요?",
+      body: "사람은 외운 것의 67%를 하루 만에 잊어요. 에빙하우스 망각곡선에 따르면, 적절한 타이밍에 복습할수록 기억이 훨씬 오래 남아요.",
+      visual: `<div class="tut-curve">
+        <svg viewBox="0 0 260 110" xmlns="http://www.w3.org/2000/svg">
+          <path d="M10,15 Q50,15 80,50 Q110,80 160,90 Q200,96 250,98" fill="none" stroke="#ddd" stroke-width="3" stroke-dasharray="6,3"/>
+          <path d="M10,15 Q30,14 45,22 Q60,32 70,26 Q85,18 105,28 Q125,38 148,34 Q175,30 210,32 Q235,33 250,34" fill="none" stroke="var(--primary)" stroke-width="3"/>
+          <circle cx="45" cy="22" r="4" fill="var(--primary)"/>
+          <circle cx="105" cy="28" r="4" fill="var(--primary)"/>
+          <circle cx="148" cy="34" r="4" fill="var(--primary)"/>
+          <text x="38" y="38" fill="var(--primary)" font-size="9">1일</text>
+          <text x="98" y="44" fill="var(--primary)" font-size="9">7일</text>
+          <text x="141" y="50" fill="var(--primary)" font-size="9">30일</text>
+          <text x="190" y="25" fill="var(--primary)" font-size="9">복습 O</text>
+          <text x="175" y="94" fill="#bbb" font-size="9">복습 X</text>
+        </svg>
+      </div>`
+    },
+    {
+      emoji: "📅", title: "이렇게 복습이 이어져요",
+      body: "새 단어를 배운 뒤 1일, 7일, 30일 뒤에 복습 시험이 열려요. 3번 복습을 완료하면 졸업! 장기 기억으로 저장돼요.",
+      visual: `<div class="tut-timeline">
+        <div class="tl-node new"><span class="tl-day">오늘</span><span class="tl-lbl">새 단어</span></div>
+        <div class="tl-line"></div>
+        <div class="tl-node r1"><span class="tl-day">1일</span><span class="tl-lbl">1차</span></div>
+        <div class="tl-line"></div>
+        <div class="tl-node r2"><span class="tl-day">7일</span><span class="tl-lbl">2차</span></div>
+        <div class="tl-line"></div>
+        <div class="tl-node r3"><span class="tl-day">30일</span><span class="tl-lbl">3차</span></div>
+        <div class="tl-line"></div>
+        <div class="tl-node grad"><span class="tl-day">🎓</span><span class="tl-lbl">졸업</span></div>
+      </div>`
+    },
+    {
+      emoji: "📂", title: "원하는 주제만 골라서 배워요",
+      body: "설정 탭 > 카테고리 필터에서 카페, 여행, 비즈니스 등 내 상황에 맞는 주제를 고르면 그 단어를 집중 학습할 수 있어요.",
+      visual: `<div class="tut-chips">
+        <span class="tut-chip">☕ 카페</span><span class="tut-chip on">✈️ 여행</span>
+        <span class="tut-chip">💼 비즈니스</span><span class="tut-chip on">🏥 의료</span>
+        <span class="tut-chip">🛍️ 쇼핑</span><span class="tut-chip">🎭 문화</span>
+      </div>`
+    },
+    {
+      emoji: "⚙️", title: "하루에 몇 단어씩 배울까요?",
+      body: "설정 탭에서 하루 새 단어 개수를 조절할 수 있어요. 처음엔 하루 5개를 추천해요. 적더라도 꾸준히 하는 게 가장 중요해요!",
+      visual: `<div class="tut-setting-box">
+        <div class="tut-setting-row"><span>하루 새 단어</span><strong>5개 ✓</strong></div>
+        <p class="tut-setting-tip">하루 5개 × 365일 = <b>연간 1,825단어</b></p>
+      </div>`
+    },
+    {
+      emoji: "🔔", title: "매일 알림으로 습관을 만들어요",
+      body: "설정 탭 > 매일 알림에서 원하는 시간을 정하면 매일 공부 시간에 알림을 보내드려요. 습관이 되면 영어가 달라져요!",
+      visual: `<div class="tut-notif-mock">
+        <div class="tut-notif-bar"><span class="tut-notif-app">📚 하루보카</span><span class="tut-notif-time">오전 8:00</span></div>
+        <div class="tut-notif-body">오늘 단어 5개, 내일의 나를 위한 투자 💪</div>
+      </div>`
+    }
+  ];
+
+  function renderTutorial(step = 0) {
+    document.body.classList.add("onboarding");
+    const s = TUTORIAL_STEPS[step];
+    const isLast = step === TUTORIAL_STEPS.length - 1;
+    const dots = TUTORIAL_STEPS.map((_, i) =>
+      `<span class="tut-dot${i === step ? " on" : ""}"></span>`).join("");
+
+    $screen.innerHTML = `
+      <div class="tutorial-screen">
+        <div class="tut-dots">${dots}</div>
+        <div class="tut-emoji">${s.emoji}</div>
+        <h2 class="tut-title">${s.title}</h2>
+        <p class="tut-body">${s.body}</p>
+        ${s.visual}
+        <div class="tut-btns">
+          <button class="btn btn-primary btn-block" id="tut-next">
+            ${isLast ? "시작하기 🚀" : "다음 →"}
+          </button>
+          ${step > 0 ? `<button class="btn btn-ghost btn-block" id="tut-prev" style="margin-top:8px">← 이전</button>` : ""}
+          ${!isLast ? `<button class="btn btn-ghost btn-block" id="tut-skip" style="margin-top:8px;font-size:13px;color:var(--text-sub)">건너뛰기</button>` : ""}
+        </div>
+      </div>`;
+
+    document.getElementById("tut-next").addEventListener("click", () => {
+      if (isLast) {
+        localStorage.setItem("ew_tutorial_v1", "done");
+        document.body.classList.remove("onboarding");
+        goHomeTab();
+      } else renderTutorial(step + 1);
+    });
+    const prev = document.getElementById("tut-prev");
+    if (prev) prev.addEventListener("click", () => renderTutorial(step - 1));
+    const skip = document.getElementById("tut-skip");
+    if (skip) skip.addEventListener("click", () => {
+      localStorage.setItem("ew_tutorial_v1", "done");
+      document.body.classList.remove("onboarding");
+      goHomeTab();
+    });
   }
 
   // ===== 홈 화면 =====
@@ -577,6 +809,7 @@
     const u = C.getUser();
     if (u) {
       const name = (u.user_metadata && (u.user_metadata.name || u.user_metadata.full_name)) || u.email || "사용자";
+      const nick = localStorage.getItem("ew_nick_v1");
       return `
         <div class="card">
           <div class="setting-row">
@@ -585,6 +818,10 @@
               <div class="card-sub">${esc(name)} · 진도가 자동으로 저장돼요</div>
             </div>
             <button class="btn btn-ghost btn-sm" id="btn-logout">로그아웃</button>
+          </div>
+          <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px;display:flex;align-items:center;justify-content:space-between">
+            <div class="card-sub">${nick ? `닉네임: <b>${esc(nick)}</b>` : "닉네임 미설정"}</div>
+            <button class="btn btn-ghost btn-sm" id="btn-edit-nick">${nick ? "변경" : "설정"}</button>
           </div>
         </div>`;
     }
@@ -678,6 +915,15 @@
         </div>
       </div>
       <div class="card">
+        <div class="setting-row">
+          <div>
+            <div class="card-title" style="font-size:15px">앱 사용법 안내</div>
+            <div class="card-sub">에빙하우스 학습법 · 기능 설명</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="btn-show-tutorial">다시 보기</button>
+        </div>
+      </div>
+      <div class="card">
         <div class="card-sub" style="text-align:center">
           하루보카 v0.1<br>에빙하우스 망각곡선 기반 영어회화 단어암기
         </div>
@@ -690,6 +936,10 @@
       await window.Cloud.signOut();
       renderSettings();
     });
+    const btnEditNick = document.getElementById("btn-edit-nick");
+    if (btnEditNick) btnEditNick.addEventListener("click", () => renderNicknameSetup(true));
+    const btnTutorial = document.getElementById("btn-show-tutorial");
+    if (btnTutorial) btnTutorial.addEventListener("click", () => renderTutorial(0));
 
     document.getElementById("sel-perday").addEventListener("change", e => {
       state.settings.newPerDay = Number(e.target.value);
@@ -949,8 +1199,15 @@
     }
   };
 
-  // 시작 — 첫 실행(레벨 테스트 전)이면 온보딩, 아니면 홈
+  // 시작
   state = SRS.load();
-  if (!state.onboarded) renderOnboarding();
+  // 기존 사용자 마이그레이션 — 이미 학습 이력 있으면 환영·튜토리얼 건너뜀
+  if (state.onboarded && !localStorage.getItem("ew_welcome_v1")) {
+    localStorage.setItem("ew_welcome_v1", "legacy");
+    localStorage.setItem("ew_tutorial_v1", "done");
+  }
+  if (!localStorage.getItem("ew_welcome_v1")) renderWelcome();
+  else if (!state.onboarded) renderOnboarding();
+  else if (!localStorage.getItem("ew_tutorial_v1")) renderTutorial(0);
   else renderHome();
 })();

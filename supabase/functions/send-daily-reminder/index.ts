@@ -147,7 +147,7 @@ Deno.serve(async () => {
 
   const { data: subs, error } = await supabase
     .from("push_subscriptions")
-    .select("subscription")
+    .select("subscription, user_id")
     .eq("notify_hour", kstHour)
     .eq("enabled", true);
 
@@ -155,11 +155,23 @@ Deno.serve(async () => {
     return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   }
 
-  const msg = MESSAGES[Math.floor(Math.random() * MESSAGES.length)];
-  const payload = JSON.stringify({ title: "하루보카 📚", body: msg });
+  // 닉네임 일괄 조회
+  const userIds = (subs ?? []).map(s => s.user_id).filter(Boolean);
+  const nickMap: Record<string, string> = {};
+  if (userIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles").select("id, nickname").in("id", userIds);
+    (profiles ?? []).forEach((p: { id: string; nickname: string }) => { nickMap[p.id] = p.nickname; });
+  }
 
   const results = await Promise.allSettled(
-    (subs ?? []).map(row => webPush.sendNotification(row.subscription, payload))
+    (subs ?? []).map(row => {
+      const msg = MESSAGES[Math.floor(Math.random() * MESSAGES.length)];
+      const nick = row.user_id ? nickMap[row.user_id] : null;
+      const body = nick ? `${nick}님, ${msg}` : msg;
+      const payload = JSON.stringify({ title: "하루보카 📚", body });
+      return webPush.sendNotification(row.subscription, payload);
+    })
   );
 
   const sent     = results.filter(r => r.status === "fulfilled").length;

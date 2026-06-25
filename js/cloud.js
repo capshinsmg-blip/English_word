@@ -77,7 +77,12 @@ if (CONFIGURED) {
   sb.auth.onAuthStateChange((_event, session) => {
     user = (session && session.user) || null;
     window.dispatchEvent(new CustomEvent("cloud-auth"));
-    if (user) pullAndReconcile();
+    if (user) {
+      pullAndReconcile();
+      // 닉네임 로컬 캐시 갱신
+      sb.from("profiles").select("nickname").eq("id", user.id).maybeSingle()
+        .then(({ data }) => { if (data?.nickname) localStorage.setItem("ew_nick_v1", data.nickname); });
+    }
   });
 }
 
@@ -89,8 +94,27 @@ window.Cloud = {
   signInKakao() { if (sb) sb.auth.signInWithOAuth({ provider: "kakao", options: { redirectTo: REDIRECT } }); },
   async signOut() {
     if (sb) await sb.auth.signOut();
+    localStorage.removeItem("ew_nick_v1");
     user = null;
     window.dispatchEvent(new CustomEvent("cloud-auth"));
+  },
+
+  async getNickname() {
+    if (!sb || !user) return null;
+    const { data } = await sb.from("profiles").select("nickname").eq("id", user.id).maybeSingle();
+    return data?.nickname || null;
+  },
+  async checkNicknameAvailable(nick) {
+    if (!sb) return true;
+    const { data } = await sb.from("profiles").select("id").eq("nickname", nick).maybeSingle();
+    return !data;
+  },
+  async setNickname(nick) {
+    if (!sb || !user) return false;
+    const { error } = await sb.from("profiles").upsert({ id: user.id, nickname: nick });
+    if (error) { console.warn("[cloud] 닉네임 저장 실패:", error.message); return false; }
+    localStorage.setItem("ew_nick_v1", nick);
+    return true;
   },
 
   // 푸시 구독 저장 (로그인 여부와 무관하게 Supabase에 upsert)
