@@ -622,6 +622,26 @@
           <button class="btn btn-ghost btn-sm" id="btn-retest">다시 테스트</button>
         </div>
       </div>
+      <div class="card" id="card-notif">
+        <div class="setting-row">
+          <div>
+            <div class="card-title" style="font-size:15px">🔔 매일 알림</div>
+            <div class="card-sub" id="notif-status-text">확인 중...</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="notif-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div id="notif-time-row" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div class="card-sub">알림 시간</div>
+            <select id="notif-hour-sel" class="notif-hour-sel">
+              ${Array.from({length:24},(_,i)=>`<option value="${i}">${String(i).padStart(2,"0")}:00</option>`).join("")}
+            </select>
+          </div>
+        </div>
+      </div>
       <div class="card" id="card-theme-filter">
         <div class="setting-row">
           <div>
@@ -687,6 +707,83 @@
         goHomeTab();
       }
     });
+
+    // 알림 설정 초기화 (비동기)
+    if (window.Notif) {
+      (async () => {
+        const toggleEl = document.getElementById("notif-toggle");
+        const statusText = document.getElementById("notif-status-text");
+        const timeRow = document.getElementById("notif-time-row");
+        const hourSel = document.getElementById("notif-hour-sel");
+        const toggleLabel = toggleEl && toggleEl.closest("label");
+        if (!toggleEl) return;
+
+        function applyStatus(s) {
+          toggleEl.checked = s.enabled;
+          if (hourSel) hourSel.value = s.hour;
+          timeRow.style.display = s.enabled ? "block" : "none";
+          if (!s.supported) {
+            statusText.textContent = "이 기기에서는 알림을 지원하지 않아요";
+            toggleEl.disabled = true;
+            if (toggleLabel) toggleLabel.style.opacity = "0.4";
+            return;
+          }
+          if (!s.vapidOk) {
+            statusText.textContent = "알림 서버 미설정 (관리자 설정 필요)";
+            toggleEl.disabled = true;
+            if (toggleLabel) toggleLabel.style.opacity = "0.4";
+            return;
+          }
+          if (s.permission === "denied") {
+            statusText.textContent = "알림 권한 거부됨 — 기기 설정에서 허용해주세요";
+            toggleEl.disabled = true;
+            if (toggleLabel) toggleLabel.style.opacity = "0.4";
+            return;
+          }
+          toggleEl.disabled = false;
+          if (toggleLabel) toggleLabel.style.opacity = "";
+          statusText.textContent = s.enabled
+            ? `매일 ${String(s.hour).padStart(2, "0")}:00에 알림`
+            : "매일 정해진 시간에 공부 알림을 받아요";
+        }
+
+        const status = await Notif.getStatus();
+        applyStatus(status);
+
+        toggleEl.addEventListener("change", async () => {
+          if (toggleEl.checked) {
+            statusText.textContent = "알림 구독 중...";
+            toggleEl.disabled = true;
+            const result = await Notif.subscribe(hourSel ? +hourSel.value : 8);
+            toggleEl.disabled = false;
+            if (result.ok) {
+              applyStatus(await Notif.getStatus());
+            } else {
+              toggleEl.checked = false;
+              timeRow.style.display = "none";
+              const msgs = {
+                denied: "알림 권한이 거부됐어요 — 기기 설정에서 허용해주세요",
+                no_vapid_key: "알림 서버 미설정 상태예요",
+                unsupported: "이 기기에서는 알림을 지원하지 않아요",
+                failed: "알림 구독에 실패했어요 (HTTPS 필요)"
+              };
+              statusText.textContent = msgs[result.reason] || "알림 설정에 실패했어요";
+            }
+          } else {
+            statusText.textContent = "구독 해제 중...";
+            await Notif.unsubscribe();
+            applyStatus(await Notif.getStatus());
+          }
+        });
+
+        if (hourSel) {
+          hourSel.addEventListener("change", async () => {
+            await Notif.updateHour(+hourSel.value);
+            statusText.textContent = `매일 ${String(+hourSel.value).padStart(2, "0")}:00에 알림`;
+          });
+        }
+      })();
+    }
 
     function updateThemeSummary() {
       const n = document.querySelectorAll(".theme-btn.active").length;

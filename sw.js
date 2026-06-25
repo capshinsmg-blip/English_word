@@ -1,11 +1,12 @@
 // PWA 서비스워커 — 오프라인에서도 앱이 동작하도록 캐시
-const CACHE = "ew-v13";
+const CACHE = "ew-v14";
 const ASSETS = [
   "./",
   "./index.html",
   "./css/style.css",
   "./js/data.js",
   "./js/srs.js",
+  "./js/notifications.js",
   "./js/app.js",
   "./js/cloud.js",
   "./manifest.json",
@@ -26,6 +27,31 @@ self.addEventListener("activate", e => {
     caches.keys()
       .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
+  );
+});
+
+// ===== 푸시 알림 =====
+self.addEventListener("push", e => {
+  const d = e.data ? e.data.json() : {};
+  e.waitUntil(
+    self.registration.showNotification(d.title || "하루보카 📚", {
+      body: d.body || "오늘의 영단어를 외워볼까요?",
+      icon: "./icons/icon-192.png",
+      badge: "./icons/icon-32.png",
+      tag: "daily-reminder",
+      renotify: true,
+      vibrate: [200, 100, 200]
+    })
+  );
+});
+
+self.addEventListener("notificationclick", e => {
+  e.notification.close();
+  e.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
+      for (const c of list) if ("focus" in c) return c.focus();
+      return clients.openWindow("./");
+    })
   );
 });
 

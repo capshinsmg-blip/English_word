@@ -91,5 +91,31 @@ window.Cloud = {
     if (sb) await sb.auth.signOut();
     user = null;
     window.dispatchEvent(new CustomEvent("cloud-auth"));
+  },
+
+  // 푸시 구독 저장 (로그인 여부와 무관하게 Supabase에 upsert)
+  async savePushSub(endpoint, subscription, hour) {
+    if (!sb) return false;
+    const payload = {
+      endpoint,
+      subscription,
+      notify_hour: hour,
+      enabled: true,
+      updated_at: new Date().toISOString()
+    };
+    if (user) payload.user_id = user.id;
+    const { error } = await sb.from("push_subscriptions").upsert(payload, { onConflict: "endpoint" });
+    if (error) console.warn("[cloud] push sub 저장 실패:", error.message);
+    return !error;
+  },
+
+  // 푸시 구독 비활성화
+  async removePushSub(endpoint) {
+    if (!sb) return false;
+    const { error } = await sb.from("push_subscriptions")
+      .update({ enabled: false, updated_at: new Date().toISOString() })
+      .eq("endpoint", endpoint);
+    if (error) console.warn("[cloud] push sub 해제 실패:", error.message);
+    return !error;
   }
 };
