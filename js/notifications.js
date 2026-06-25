@@ -58,6 +58,13 @@ window.Notif = (() => {
 
     const reg = await navigator.serviceWorker.ready;
     let sub;
+    // iOS는 홈 화면에 설치된 PWA에서만 push 구독 가능
+    const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isStandalone = window.navigator.standalone === true;
+    if (isIos && !isStandalone) {
+      return { ok: false, reason: "ios_not_installed" };
+    }
+
     try {
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,

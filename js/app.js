@@ -764,8 +764,9 @@
               const msgs = {
                 denied: "알림 권한이 거부됐어요 — 기기 설정에서 허용해주세요",
                 no_vapid_key: "알림 서버 미설정 상태예요",
-                unsupported: "이 기기에서는 알림을 지원하지 않아요",
-                failed: "알림 구독에 실패했어요 (HTTPS 필요)"
+                unsupported: "이 기기/브라우저에서는 알림을 지원하지 않아요",
+                ios_not_installed: "iPhone은 홈 화면에 앱 추가 후 사용 가능해요 (공유 → 홈 화면에 추가)",
+                failed: `구독 실패: ${result.detail || "HTTPS 환경에서 다시 시도해주세요"}`
               };
               statusText.textContent = msgs[result.reason] || "알림 설정에 실패했어요";
             }
