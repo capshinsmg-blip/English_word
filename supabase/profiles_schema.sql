@@ -4,8 +4,14 @@
 create table if not exists profiles (
   id          uuid primary key references auth.users(id) on delete cascade,
   nickname    text unique not null check (length(nickname) between 2 and 12),
+  age_group   text,          -- '10대','20대','30대','40대','50대 이상'
+  gender      text,          -- '남성','여성','선택 안 함'
   created_at  timestamptz not null default now()
 );
+
+-- 기존 테이블에 컬럼 추가 (이미 생성된 경우)
+alter table profiles add column if not exists age_group text;
+alter table profiles add column if not exists gender text;
 
 alter table profiles enable row level security;
 

@@ -112,6 +112,18 @@ window.Cloud = {
     const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: REDIRECT });
     return { ok: !error };
   },
+  async sendPhoneOtp(phone) {
+    if (!sb) return { ok: false, error: "cloud_disabled" };
+    const { error } = await sb.auth.signInWithOtp({ phone });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  },
+  async verifyPhoneOtp(phone, token) {
+    if (!sb) return { ok: false, error: "cloud_disabled" };
+    const { error } = await sb.auth.verifyOtp({ phone, token, type: "sms" });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  },
   async signOut() {
     if (sb) await sb.auth.signOut();
     localStorage.removeItem("ew_nick_v1");
@@ -134,6 +146,16 @@ window.Cloud = {
     const { error } = await sb.from("profiles").upsert({ id: user.id, nickname: nick });
     if (error) { console.warn("[cloud] 닉네임 저장 실패:", error.message); return false; }
     localStorage.setItem("ew_nick_v1", nick);
+    return true;
+  },
+  async setProfile({ nickname, ageGroup, gender }) {
+    if (!sb || !user) return false;
+    const payload = { id: user.id, nickname };
+    if (ageGroup) payload.age_group = ageGroup;
+    if (gender) payload.gender = gender;
+    const { error } = await sb.from("profiles").upsert(payload);
+    if (error) { console.warn("[cloud] 프로필 저장 실패:", error.message); return false; }
+    localStorage.setItem("ew_nick_v1", nickname);
     return true;
   },
 

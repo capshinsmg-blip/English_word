@@ -121,11 +121,13 @@
 
   // 로그인/로그아웃 등 클라우드 상태가 바뀌면 처리
   window.addEventListener("cloud-auth", () => {
-    if (!localStorage.getItem("ew_welcome_v1")) {
+    const isPending = !!localStorage.getItem("ew_pending_new_user");
+    const noWelcome = !localStorage.getItem("ew_welcome_v1");
+    if (noWelcome || isPending) {
       const u = window.Cloud && window.Cloud.getUser();
       if (u) {
         handlePostLogin();
-      } else if (document.querySelector(".auth-root")) {
+      } else if (noWelcome && document.querySelector(".auth-root")) {
         // cloud.js 비동기 로드 완료 — 환영화면 재렌더해서 구글 버튼 표시
         renderWelcome();
       }
@@ -272,6 +274,10 @@
     if (msg.includes("Unable to validate email"))      return "올바른 이메일 주소를 입력해주세요";
     if (msg.includes("cloud_disabled"))                return "로그인 기능을 사용할 수 없어요";
     if (msg.includes("rate limit"))                    return "잠시 후 다시 시도해주세요";
+    if (msg.includes("Invalid phone"))                 return "올바른 전화번호를 입력해주세요 (예: 010-1234-5678)";
+    if (msg.includes("Token has expired") || msg.includes("invalid"))  return "인증번호가 올바르지 않거나 만료됐어요";
+    if (msg.includes("Signups not allowed"))            return "현재 가입이 제한돼 있어요";
+    if (msg.includes("Phone provider"))                return "전화번호 인증 설정이 필요해요 (Supabase 대시보드)";
     return "오류가 발생했어요. 다시 시도해주세요";
   }
 
@@ -389,7 +395,7 @@
     );
   }
 
-  // ===== 이메일 회원가입 =====
+  // ===== 이메일 + 전화번호 회원가입 =====
   function renderSignup() {
     const cloudOn = window.Cloud && window.Cloud.enabled;
     $screen.innerHTML = `
@@ -430,9 +436,17 @@
               <input type="password" id="signup-pw2" class="auth-input" placeholder="비밀번호 재입력" autocomplete="new-password">
               <button type="button" class="auth-eye" id="signup-eye2">${EYE_SVG}</button>
             </div>
+            <div id="pw2-status" class="auth-error"></div>
+          </div>
+          <div class="auth-field">
+            <label class="auth-label">휴대폰 번호 <span class="auth-label-hint">(선택 · 번호 인증에 사용)</span></label>
+            <div class="phone-input-row">
+              <span class="phone-prefix">🇰🇷 +82</span>
+              <input type="tel" id="signup-phone" placeholder="010-1234-5678" autocomplete="tel">
+            </div>
           </div>
           <div id="signup-error" class="auth-error"></div>
-          <button class="btn btn-primary btn-block" id="signup-submit" style="margin-top:4px">회원가입</button>
+          <button class="btn btn-primary btn-block" id="signup-submit" disabled style="margin-top:4px">회원가입</button>
         </div>
         <div class="auth-switch">이미 계정이 있으신가요? <button class="auth-link" id="to-login">로그인</button></div>
       </div>`;
@@ -442,6 +456,26 @@
     document.getElementById("to-login").onclick = renderLogin;
     document.getElementById("signup-eye").onclick  = function() { togglePwVisibility("signup-pw", this); };
     document.getElementById("signup-eye2").onclick = function() { togglePwVisibility("signup-pw2", this); };
+
+    function updateSubmitState() {
+      const email  = document.getElementById("signup-email").value.trim();
+      const pw     = document.getElementById("signup-pw").value;
+      const pw2    = document.getElementById("signup-pw2").value;
+      const status = document.getElementById("pw2-status");
+      const btn    = document.getElementById("signup-submit");
+      if (pw2.length === 0) { status.textContent = ""; btn.disabled = true; return; }
+      if (pw !== pw2) {
+        status.textContent = "비밀번호가 일치하지 않아요";
+        status.className = "auth-error"; btn.disabled = true;
+      } else {
+        status.textContent = "✓ 비밀번호가 일치해요";
+        status.className = "auth-error ok";
+        btn.disabled = !(email && pw.length >= 6);
+      }
+    }
+    ["signup-email","signup-pw","signup-pw2"].forEach(id =>
+      document.getElementById(id).addEventListener("input", updateSubmitState)
+    );
 
     // 비밀번호 강도
     document.getElementById("signup-pw").addEventListener("input", () => {
@@ -461,21 +495,103 @@
     document.getElementById("signup-submit").onclick = async () => {
       const email = document.getElementById("signup-email").value.trim();
       const pw    = document.getElementById("signup-pw").value;
-      const pw2   = document.getElementById("signup-pw2").value;
+      const phone = document.getElementById("signup-phone").value.trim();
       const errEl = document.getElementById("signup-error");
       const btn   = document.getElementById("signup-submit");
       errEl.textContent = "";
-      if (!email || !pw)  { errEl.textContent = "이메일과 비밀번호를 입력해주세요"; return; }
-      if (pw !== pw2)     { errEl.textContent = "비밀번호가 일치하지 않아요"; return; }
-      if (pw.length < 6)  { errEl.textContent = "비밀번호는 6자 이상이어야 해요"; return; }
       btn.disabled = true; btn.textContent = "가입 중...";
+
       const r = await window.Cloud.signUpWithEmail(email, pw);
-      if (r.ok) {
-        if (r.needsConfirmation) renderEmailConfirm(email);
-        // 확인 불필요 시 cloud-auth 이벤트가 처리함
-      } else {
+      if (!r.ok) {
         errEl.textContent = mapAuthError(r.error);
         btn.disabled = false; btn.textContent = "회원가입";
+        return;
+      }
+
+      // 전화번호 입력했으면 SMS OTP 발송
+      if (phone) {
+        const e164 = phoneToE164(phone);
+        if (e164) {
+          const otpRes = await window.Cloud.sendPhoneOtp(e164);
+          if (otpRes.ok) { renderPhoneOtp(e164); return; }
+          // OTP 발송 실패해도 가입은 완료 — 그냥 진행
+        }
+      }
+
+      if (r.needsConfirmation) {
+        // 이메일 인증 대기 중임을 표시 + 재진입 감지용 플래그
+        localStorage.setItem("ew_pending_new_user", "1");
+        renderEmailConfirm(email);
+      }
+      // 즉시 세션 생성 시 cloud-auth가 처리
+    };
+  }
+
+  function phoneToE164(raw) {
+    const digits = raw.replace(/\D/g, "");
+    if (digits.startsWith("0")) return "+82" + digits.slice(1);
+    if (digits.startsWith("82")) return "+" + digits;
+    return null;
+  }
+
+  // ===== 휴대폰 OTP 인증 화면 =====
+  function renderPhoneOtp(phone) {
+    $screen.innerHTML = `
+      <div class="auth-form-screen">
+        <button class="auth-back" id="auth-back">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div class="auth-form-top">
+          <div class="auth-form-emoji">📱</div>
+          <h2 class="auth-form-title">인증번호 입력</h2>
+          <p class="auth-form-sub">${esc(phone)}로 전송된<br>6자리 인증번호를 입력해주세요</p>
+        </div>
+        <div class="otp-inputs">
+          ${[0,1,2,3,4,5].map(i => `<input type="tel" maxlength="1" class="otp-digit" id="otp-${i}" inputmode="numeric">`).join("")}
+        </div>
+        <div id="otp-error" class="auth-error" style="text-align:center"></div>
+        <button class="btn btn-primary btn-block" id="otp-submit" disabled>확인</button>
+        <button type="button" class="auth-text-btn" id="otp-resend" style="margin-top:12px">인증번호 재발송</button>
+        <div class="auth-switch">전화번호 없이 계속하기 — <button class="auth-link" id="otp-skip">건너뛰기</button></div>
+      </div>`;
+
+    document.getElementById("auth-back").onclick = renderSignup;
+    document.getElementById("otp-skip").onclick = () => { localStorage.setItem("ew_pending_new_user", "1"); handlePostLogin(); };
+    document.getElementById("otp-resend").onclick = async () => {
+      await window.Cloud.sendPhoneOtp(phone);
+      const errEl = document.getElementById("otp-error");
+      errEl.textContent = "재발송했어요"; errEl.className = "auth-error ok";
+    };
+
+    // 6박스 OTP — 자동 포커스 이동
+    const inputs = Array.from({ length: 6 }, (_, i) => document.getElementById(`otp-${i}`));
+    inputs.forEach((el, i) => {
+      el.addEventListener("input", e => {
+        el.value = el.value.replace(/\D/, "").slice(-1);
+        if (el.value) el.classList.add("filled"); else el.classList.remove("filled");
+        if (el.value && i < 5) inputs[i + 1].focus();
+        const code = inputs.map(x => x.value).join("");
+        document.getElementById("otp-submit").disabled = code.length < 6;
+      });
+      el.addEventListener("keydown", e => {
+        if (e.key === "Backspace" && !el.value && i > 0) inputs[i - 1].focus();
+      });
+    });
+    inputs[0].focus();
+
+    document.getElementById("otp-submit").onclick = async () => {
+      const code  = inputs.map(x => x.value).join("");
+      const errEl = document.getElementById("otp-error");
+      const btn   = document.getElementById("otp-submit");
+      btn.disabled = true; btn.textContent = "확인 중...";
+      const r = await window.Cloud.verifyPhoneOtp(phone, code);
+      if (r.ok) {
+        localStorage.setItem("ew_pending_new_user", "1");
+        handlePostLogin();
+      } else {
+        errEl.textContent = mapAuthError(r.error);
+        errEl.className = "auth-error";
+        btn.disabled = false; btn.textContent = "확인";
       }
     };
   }
@@ -497,11 +613,25 @@
   }
 
   async function handlePostLogin() {
-    const nick = window.Cloud && window.Cloud.enabled ? await window.Cloud.getNickname() : null;
-    if (nick === null && window.Cloud && window.Cloud.enabled && window.Cloud.getUser()) {
-      renderNicknameSetup(false);
+    const C = window.Cloud;
+    if (!C || !C.enabled || !C.getUser()) {
+      localStorage.setItem("ew_welcome_v1", "logged-in");
+      document.body.classList.remove("onboarding");
+      afterWelcome();
+      return;
+    }
+    const nick = await C.getNickname();
+    if (nick === null) {
+      // 닉네임 없음 = 신규 계정 → 이전 로컬 진행 플래그 초기화하고 신규 흐름 강제
+      localStorage.removeItem("ew_welcome_v1");
+      localStorage.removeItem("ew_tutorial_v1");
+      localStorage.removeItem("ew_pending_new_user");
+      renderProfileSetup(false);
     } else {
-      localStorage.setItem("ew_welcome_v1", "google");
+      // 기존 계정 재로그인
+      localStorage.setItem("ew_welcome_v1", "logged-in");
+      localStorage.setItem("ew_nick_v1", nick);
+      localStorage.removeItem("ew_pending_new_user");
       document.body.classList.remove("onboarding");
       afterWelcome();
     }
@@ -514,80 +644,132 @@
     else goHomeTab();
   }
 
-  // ===== 닉네임 설정 =====
-  function renderNicknameSetup(fromSettings = false) {
+  // ===== 프로필 설정 (닉네임 + 나이대 + 성별) =====
+  function renderProfileSetup(fromSettings = false) {
     document.body.classList.add("onboarding");
+    const AGE_GROUPS = ["10대","20대","30대","40대","50대 이상"];
+    const GENDERS    = ["남성","여성","선택 안 함"];
     $screen.innerHTML = `
-      <div class="nickname-screen">
-        <div class="nickname-emoji">✏️</div>
-        <h2>닉네임을 설정해주세요</h2>
-        <p class="nickname-sub">하루보카에서 사용할 이름이에요<br>알림을 보낼 때도 이 이름으로 불러드려요 🔔</p>
-        <div class="nickname-input-wrap">
-          <input type="text" id="nick-input" class="nickname-input"
-            placeholder="2~12자 (한글·영문·숫자)" maxlength="12" autocomplete="off">
-          <div id="nick-status" class="nick-status"></div>
+      <div class="auth-form-screen">
+        <div class="auth-form-top">
+          <div class="auth-form-emoji">👤</div>
+          <h2 class="auth-form-title">프로필 설정</h2>
+          <p class="auth-form-sub">하루보카에서 사용할 정보를 입력해주세요</p>
         </div>
-        <button class="btn btn-primary btn-block" id="nick-confirm" disabled>확인</button>
-        <button class="btn btn-ghost btn-block" id="nick-skip" style="margin-top:8px">
-          ${fromSettings ? "취소" : "나중에 설정"}
-        </button>
+        <div class="auth-fields">
+          <div class="auth-field">
+            <label class="auth-label">닉네임 <span class="auth-label-hint">(2~12자, 한글·영문·숫자)</span></label>
+            <input type="text" id="nick-input" class="auth-input"
+              placeholder="닉네임 입력" maxlength="12" autocomplete="off">
+            <div id="nick-status" class="auth-error"></div>
+          </div>
+          <div class="auth-field">
+            <label class="auth-label">나이대</label>
+            <div class="profile-chip-group" id="age-chips">
+              ${AGE_GROUPS.map(a => `<button type="button" class="profile-chip" data-age="${a}">${a}</button>`).join("")}
+            </div>
+          </div>
+          <div class="auth-field">
+            <label class="auth-label">성별</label>
+            <div class="profile-chip-group" id="gender-chips">
+              ${GENDERS.map(g => `<button type="button" class="profile-chip" data-gender="${g}">${g}</button>`).join("")}
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:24px">
+          <button class="btn btn-primary btn-block" id="nick-confirm" disabled>완료</button>
+          <button class="btn btn-ghost btn-block" id="nick-skip" style="margin-top:8px">
+            ${fromSettings ? "취소" : "나중에 설정"}
+          </button>
+        </div>
       </div>`;
 
-    const input = document.getElementById("nick-input");
-    const status = document.getElementById("nick-status");
+    const input      = document.getElementById("nick-input");
+    const status     = document.getElementById("nick-status");
     const confirmBtn = document.getElementById("nick-confirm");
     let checkTimer;
+    let nickValid    = false;
+    let selectedAge  = "";
+    let selectedGender = "";
+
+    function refreshConfirmBtn() {
+      confirmBtn.disabled = !nickValid;
+    }
+
+    // 나이대 칩
+    document.getElementById("age-chips").addEventListener("click", e => {
+      const chip = e.target.closest(".profile-chip");
+      if (!chip) return;
+      document.querySelectorAll("#age-chips .profile-chip").forEach(c => c.classList.remove("selected"));
+      chip.classList.add("selected");
+      selectedAge = chip.dataset.age;
+    });
+
+    // 성별 칩
+    document.getElementById("gender-chips").addEventListener("click", e => {
+      const chip = e.target.closest(".profile-chip");
+      if (!chip) return;
+      document.querySelectorAll("#gender-chips .profile-chip").forEach(c => c.classList.remove("selected"));
+      chip.classList.add("selected");
+      selectedGender = chip.dataset.gender;
+    });
 
     input.addEventListener("input", () => {
       const val = input.value.trim();
       clearTimeout(checkTimer);
-      confirmBtn.disabled = true;
+      nickValid = false; refreshConfirmBtn();
       if (val.length < 2) {
         status.textContent = val.length ? "2자 이상 입력해주세요" : "";
-        status.className = "nick-status error";
-        return;
+        status.className = "auth-error"; return;
       }
       if (!/^[가-힣a-zA-Z0-9]+$/.test(val)) {
         status.textContent = "한글, 영문, 숫자만 사용 가능해요";
-        status.className = "nick-status error";
-        return;
+        status.className = "auth-error"; return;
       }
-      status.textContent = "확인 중...";
-      status.className = "nick-status checking";
+      status.textContent = "확인 중..."; status.className = "auth-error";
       checkTimer = setTimeout(async () => {
         const avail = await window.Cloud.checkNicknameAvailable(val);
         if (avail) {
           status.textContent = "✓ 사용 가능한 닉네임이에요";
-          status.className = "nick-status ok";
-          confirmBtn.disabled = false;
+          status.className = "auth-error ok";
+          nickValid = true;
         } else {
           status.textContent = "이미 사용 중인 닉네임이에요";
-          status.className = "nick-status error";
+          status.className = "auth-error";
         }
+        refreshConfirmBtn();
       }, 600);
     });
 
     confirmBtn.addEventListener("click", async () => {
       const val = input.value.trim();
-      confirmBtn.disabled = true;
-      confirmBtn.textContent = "저장 중...";
-      const ok = await window.Cloud.setNickname(val);
+      confirmBtn.disabled = true; confirmBtn.textContent = "저장 중...";
+      const C = window.Cloud;
+      let ok;
+      if (C && C.enabled && C.getUser()) {
+        ok = await C.setProfile({ nickname: val, ageGroup: selectedAge, gender: selectedGender });
+      } else {
+        localStorage.setItem("ew_nick_v1", val);
+        ok = true;
+      }
       if (ok) {
         if (fromSettings) { document.body.classList.remove("onboarding"); renderSettings(); }
-        else { localStorage.setItem("ew_welcome_v1", "google"); document.body.classList.remove("onboarding"); afterWelcome(); }
+        else { localStorage.setItem("ew_welcome_v1", "logged-in"); document.body.classList.remove("onboarding"); afterWelcome(); }
       } else {
         status.textContent = "저장에 실패했어요. 다시 시도해주세요";
-        status.className = "nick-status error";
-        confirmBtn.disabled = false;
-        confirmBtn.textContent = "확인";
+        status.className = "auth-error";
+        confirmBtn.disabled = false; confirmBtn.textContent = "완료";
       }
     });
 
     document.getElementById("nick-skip").addEventListener("click", () => {
       if (fromSettings) { document.body.classList.remove("onboarding"); renderSettings(); }
-      else { localStorage.setItem("ew_welcome_v1", "google"); document.body.classList.remove("onboarding"); afterWelcome(); }
+      else { localStorage.setItem("ew_welcome_v1", "skipped"); document.body.classList.remove("onboarding"); afterWelcome(); }
     });
   }
+
+  // 설정에서 닉네임 변경 시 사용 (이전 API 이름 유지)
+  function renderNicknameSetup(fromSettings) { renderProfileSetup(fromSettings); }
 
   // ===== 튜토리얼 (5단계) =====
   const TUTORIAL_STEPS = [
@@ -1413,13 +1595,22 @@
 
   // 시작
   state = SRS.load();
-  // 기존 사용자 마이그레이션 — 이미 학습 이력 있으면 환영·튜토리얼 건너뜀
-  if (state.onboarded && !localStorage.getItem("ew_welcome_v1")) {
-    localStorage.setItem("ew_welcome_v1", "legacy");
-    localStorage.setItem("ew_tutorial_v1", "done");
+
+  if (localStorage.getItem("ew_pending_new_user")) {
+    // 이메일 가입 후 인증 대기 상태로 재진입 — 레거시 감지 건너뛰고 환영화면 표시
+    // cloud-auth 이벤트가 로그인 감지 후 handlePostLogin → renderProfileSetup으로 라우팅
+    localStorage.removeItem("ew_welcome_v1");
+    localStorage.removeItem("ew_tutorial_v1");
+    renderWelcome();
+  } else {
+    // 기존 사용자 마이그레이션 — 이미 학습 이력 있으면 환영·튜토리얼 건너뜀
+    if (state.onboarded && !localStorage.getItem("ew_welcome_v1")) {
+      localStorage.setItem("ew_welcome_v1", "legacy");
+      localStorage.setItem("ew_tutorial_v1", "done");
+    }
+    if (!localStorage.getItem("ew_welcome_v1")) renderWelcome();
+    else if (!state.onboarded) renderOnboarding();
+    else if (!localStorage.getItem("ew_tutorial_v1")) renderTutorial(0);
+    else renderHome();
   }
-  if (!localStorage.getItem("ew_welcome_v1")) renderWelcome();
-  else if (!state.onboarded) renderOnboarding();
-  else if (!localStorage.getItem("ew_tutorial_v1")) renderTutorial(0);
-  else renderHome();
 })();
