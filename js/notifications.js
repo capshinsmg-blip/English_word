@@ -53,25 +53,31 @@ window.Notif = (() => {
     const vapidKey = window.VAPID_PUBLIC_KEY;
     if (!vapidKey || vapidKey.startsWith("YOUR_")) return { ok: false, reason: "no_vapid_key" };
 
-    const perm = await Notification.requestPermission();
-    if (perm !== "granted") return { ok: false, reason: "denied" };
-
-    const reg = await navigator.serviceWorker.ready;
-    let sub;
     // iOS는 홈 화면에 설치된 PWA에서만 push 구독 가능
     const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    const isStandalone = window.navigator.standalone === true;
-    if (isIos && !isStandalone) {
+    if (isIos && window.navigator.standalone !== true) {
       return { ok: false, reason: "ios_not_installed" };
     }
 
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") return { ok: false, reason: "denied" };
+
+    let reg;
+    try { reg = await swReady(5000); }
+    catch { return { ok: false, reason: "failed", detail: "Service Worker 준비 실패 (앱 재시작 후 시도)" }; }
+
+    if (!reg || !reg.pushManager) {
+      return { ok: false, reason: "failed", detail: `PushManager 없음 — iOS 16.4 이상 필요 (현재: ${navigator.userAgent.match(/OS (\d+_\d+)/)?.[1] || "버전 미확인"})` };
+    }
+
+    let sub;
     try {
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlB64ToUint8(vapidKey)
       });
     } catch (e) {
-      return { ok: false, reason: "failed", detail: e.message };
+      return { ok: false, reason: "failed", detail: `${e.name}: ${e.message}` };
     }
 
     save({ hour, enabled: true, endpoint: sub.endpoint });
