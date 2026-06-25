@@ -21,20 +21,31 @@ window.Notif = (() => {
     return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
   }
 
+  async function swReady(ms = 3000) {
+    return Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise((_, rej) => setTimeout(() => rej(new Error("sw timeout")), ms))
+    ]);
+  }
+
   async function getStatus() {
     if (!isSupported()) return { supported: false };
     const pref = load();
     const vapidOk = !!(window.VAPID_PUBLIC_KEY && !window.VAPID_PUBLIC_KEY.startsWith("YOUR_"));
-    const reg = await navigator.serviceWorker.ready;
-    const sub = await reg.pushManager.getSubscription();
-    return {
-      supported: true,
-      vapidOk,
-      permission: Notification.permission,
-      subscribed: !!sub,
-      hour: typeof pref.hour === "number" ? pref.hour : 8,
-      enabled: !!sub && pref.enabled === true
-    };
+    try {
+      const reg = await swReady();
+      const sub = await reg.pushManager.getSubscription();
+      return {
+        supported: true,
+        vapidOk,
+        permission: Notification.permission,
+        subscribed: !!sub,
+        hour: typeof pref.hour === "number" ? pref.hour : 8,
+        enabled: !!sub && pref.enabled === true
+      };
+    } catch {
+      return { supported: true, vapidOk, permission: Notification.permission, subscribed: false, hour: pref.hour ?? 8, enabled: false };
+    }
   }
 
   async function subscribe(hour) {
