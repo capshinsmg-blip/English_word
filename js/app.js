@@ -623,21 +623,29 @@
         </div>
       </div>
       <div class="card" id="card-theme-filter">
-        <div class="card-title" style="font-size:15px;margin-bottom:4px">📂 카테고리 필터</div>
-        <div class="card-sub" style="margin-bottom:16px">선택한 카테고리의 단어만 새 단어로 출제돼요. 비우면 전체 출제</div>
-        ${THEME_GROUPS.map(group => `
-          <div class="theme-filter-group">
-            <div class="theme-filter-group-label">${group.name}</div>
-            <div class="theme-filter-grid">
-              ${group.themes.map(t => {
-                const isActive = (state.settings.selectedThemes || []).includes(t.name);
-                return `<button class="theme-btn${isActive ? " active" : ""}" data-name="${t.name.replace(/"/g,'&quot;')}">${t.name}</button>`;
-              }).join("")}
-            </div>
-          </div>`).join("")}
-        <div style="margin-top:12px;display:flex;gap:8px">
-          <button class="btn btn-ghost btn-sm" id="btn-theme-all">전체 선택</button>
-          <button class="btn btn-ghost btn-sm" id="btn-theme-none">전체 해제</button>
+        <div class="setting-row">
+          <div>
+            <div class="card-title" style="font-size:15px">📂 카테고리 필터</div>
+            <div class="card-sub" id="theme-filter-summary">${(() => { const n = (state.settings.selectedThemes||[]).length; return n ? n+"개 카테고리 선택됨" : "전체 출제 중"; })()}</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="btn-theme-open">선택하기</button>
+        </div>
+        <div id="theme-filter-body" style="display:none">
+          <div style="height:1px;background:var(--border);margin:12px 0 16px"></div>
+          ${THEME_GROUPS.map(group => `
+            <div class="theme-filter-group">
+              <div class="theme-filter-group-label">${group.name}</div>
+              <div class="theme-filter-grid">
+                ${group.themes.map(t => {
+                  const isActive = (state.settings.selectedThemes || []).includes(t.name);
+                  return `<button class="theme-btn${isActive ? " active" : ""}" data-name="${t.name.replace(/"/g,'&quot;')}">${t.name}</button>`;
+                }).join("")}
+              </div>
+            </div>`).join("")}
+          <div style="margin-top:12px;display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" id="btn-theme-all">전체 선택</button>
+            <button class="btn btn-ghost btn-sm" id="btn-theme-none">전체 해제</button>
+          </div>
         </div>
       </div>
       <div class="card">
@@ -680,9 +688,22 @@
       }
     });
 
+    function updateThemeSummary() {
+      const n = document.querySelectorAll(".theme-btn.active").length;
+      const el = document.getElementById("theme-filter-summary");
+      if (el) el.textContent = n ? n + "개 카테고리 선택됨" : "전체 출제 중";
+    }
+    document.getElementById("btn-theme-open").addEventListener("click", () => {
+      const body = document.getElementById("theme-filter-body");
+      const btn = document.getElementById("btn-theme-open");
+      const isOpen = body.style.display !== "none";
+      body.style.display = isOpen ? "none" : "block";
+      btn.textContent = isOpen ? "선택하기" : "닫기";
+    });
     function saveThemeFilter() {
       state.settings.selectedThemes = [...document.querySelectorAll(".theme-btn.active")].map(el => el.dataset.name);
       SRS.save(state);
+      updateThemeSummary();
     }
     document.querySelectorAll(".theme-btn").forEach(btn => btn.addEventListener("click", () => {
       btn.classList.toggle("active");
