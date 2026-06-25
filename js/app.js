@@ -592,7 +592,8 @@
       <div class="card">
         <div class="card-title" style="font-size:15px">☁️ 진도 클라우드 저장</div>
         <div class="card-sub" style="margin:6px 0 12px">로그인하면 기기를 바꿔도 학습 진도가 그대로 이어져요.</div>
-        <button class="btn btn-primary btn-block" id="btn-login-google">구글로 로그인</button>
+        <button class="btn btn-kakao btn-block" id="btn-login-kakao">카카오로 로그인</button>
+        <button class="btn btn-google btn-block" id="btn-login-google" style="margin-top:8px">구글로 로그인</button>
       </div>`;
   }
 
@@ -683,6 +684,8 @@
         </div>
       </div>`;
 
+    const btnKakao = document.getElementById("btn-login-kakao");
+    if (btnKakao) btnKakao.addEventListener("click", () => window.Cloud.signInKakao());
     const btnGoogle = document.getElementById("btn-login-google");
     if (btnGoogle) btnGoogle.addEventListener("click", () => window.Cloud.signInGoogle());
     const btnLogout = document.getElementById("btn-logout");
