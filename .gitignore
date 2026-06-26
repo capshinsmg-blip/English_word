@@ -1,2 +1,5 @@
 # Claude Code 로컬 설정 (개인 환경용 — 저장소에 올리지 않음)
 .claude/
+
+# Supabase CLI 임시 파일
+supabase/.temp/
