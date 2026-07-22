@@ -940,6 +940,18 @@ body.onboarding .ad-banner { display: none; }
 }
 .auth-link:hover { opacity: 0.8; }
 
+/* ===== 스트릭 프리즈 · 복습 순연 · 복귀 ===== */
+.freeze-notice { border-left: 4px solid #64b5f6; background: #f2f9ff; }
+.freeze-count {
+  font-size: 12px; font-weight: 600; color: var(--primary);
+  background: var(--primary-light); border-radius: 999px; padding: 2px 8px; margin-left: 6px;
+  vertical-align: 1px;
+}
+.deferred-note { background: var(--bg); border-style: dashed; }
+.deferred-note .card-sub { line-height: 1.6; }
+.comeback-box .emoji { font-size: 56px; }
+.comeback-box p b { color: var(--primary); }
+
 /* ===== 휴대폰 번호 입력 ===== */
 .phone-input-row {
   display: flex; align-items: stretch; border: 1.5px solid var(--border); border-radius: 12px;

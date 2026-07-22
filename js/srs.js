@@ -14,6 +14,13 @@ const SRS = (() => {
   // 경험치 규칙: 출석(하루 첫 활동) / 새 단어 1개 / 복습 통과 단어 1개
   const XP_RULES = { attend: 20, newWord: 5, reviewWord: 8 };
 
+  // 스트릭 프리즈: XP로 구매해 하루 놓쳐도 연속 기록을 지키는 아이템
+  const FREEZE_COST = 200;   // 1개 구매 비용 (XP)
+  const FREEZE_MAX = 2;      // 최대 보유 수
+
+  // 하루에 보여줄 복습 시험 상한 — 밀린 복습이 벽이 되지 않도록 초과분은 자동 순연
+  const REVIEW_DAILY_CAP = 3;
+
   function todayStr(d = new Date()) {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -26,7 +33,15 @@ const SRS = (() => {
   }
 
   function defaultState() {
-    return { batches: [], activity: [], settings: { newPerDay: 5, startId: 1, selectedThemes: [] }, xp: 0, perfect: 0, best: 0, onboarded: false, placement: null };
+    return {
+      batches: [], activity: [],
+      settings: { newPerDay: 5, startId: 1, selectedThemes: [] },
+      xp: 0, perfect: 0, best: 0, onboarded: false, placement: null,
+      wordStats: {},        // 단어별 이력: { [id]: { seen: 출제 수, wrong: 첫 시도 오답 수 } }
+      freezes: 0,           // 보유 중인 스트릭 프리즈
+      spentXp: 0,           // 프리즈 구매 등으로 쓴 XP (레벨은 누적 xp 기준이라 안 떨어짐)
+      frozenDays: []        // 프리즈로 지켜진 날짜들 (streak 계산에 출석으로 인정)
+    };
   }
 
   function load() {
@@ -46,6 +61,10 @@ const SRS = (() => {
       // 레벨 테스트(온보딩): 기존 학습 기록이 있으면 이미 완료한 것으로 간주
       s.onboarded = raw.onboarded === true || (Array.isArray(raw.batches) && raw.batches.length > 0);
       s.placement = raw.placement || null;
+      if (raw.wordStats && typeof raw.wordStats === "object") s.wordStats = raw.wordStats;
+      if (typeof raw.freezes === "number") s.freezes = raw.freezes;
+      if (typeof raw.spentXp === "number") s.spentXp = raw.spentXp;
+      if (Array.isArray(raw.frozenDays)) s.frozenDays = raw.frozenDays;
       return s;
     } catch {
       return defaultState();
@@ -107,7 +126,7 @@ const SRS = (() => {
     return s.batches.some(b => b.learnedOn === todayStr());
   }
 
-  // 오늘 복습이 도래한 배치 목록 (배치당 하루 1개 차수만)
+  // 오늘 복습이 도래한 배치 목록 (배치당 하루 1개 차수만) — 밀린 일수가 큰(급한) 순서로 정렬
   function dueReviews(s) {
     const out = [];
     for (const b of s.batches) {
@@ -116,12 +135,19 @@ const SRS = (() => {
         if (!b.reviews[k] && elapsed >= REVIEW_OFFSETS[k]) {
           // 이전 차수 복습을 오늘 이미 했으면 다음 차수는 내일로 미룸
           if (b.reviews[k - 1] === todayStr()) break;
-          out.push({ batch: b, stage: k });
+          out.push({ batch: b, stage: k, overdue: elapsed - REVIEW_OFFSETS[k] });
           break;
         }
       }
     }
+    out.sort((a, b) => b.overdue - a.overdue);
     return out;
+  }
+
+  // 오늘 실제로 보여줄 복습 (상한 적용) — 초과분은 개수만 알려주고 자동 순연
+  function dueReviewsToday(s) {
+    const all = dueReviews(s);
+    return { due: all.slice(0, REVIEW_DAILY_CAP), deferred: Math.max(0, all.length - REVIEW_DAILY_CAP) };
   }
 
   // 새 단어 암기 완료 → 배치 생성 (+경험치)
@@ -159,17 +185,69 @@ const SRS = (() => {
     if (st > s.best) s.best = st; // 최고 연속 기록 갱신
   }
 
-  // 연속 학습일 계산
+  // 그 날짜에 출석했는가 (실제 학습 또는 프리즈로 지켜진 날)
+  function wasActive(s, dateStr) {
+    return s.activity.includes(dateStr) || (s.frozenDays || []).includes(dateStr);
+  }
+
+  // 연속 학습일 계산 (프리즈로 지켜진 날도 이어진 것으로 인정)
   function streak(s) {
     let n = 0;
     const d = new Date();
     // 오늘 아직 학습 안 했어도 어제까지 이어졌으면 유지
-    if (!s.activity.includes(todayStr(d))) d.setDate(d.getDate() - 1);
-    while (s.activity.includes(todayStr(d))) {
+    if (!wasActive(s, todayStr(d))) d.setDate(d.getDate() - 1);
+    while (wasActive(s, todayStr(d))) {
       n++;
       d.setDate(d.getDate() - 1);
     }
     return n;
+  }
+
+  // ===== 스트릭 프리즈 =====
+  // 앱 시작 시 호출: 마지막 출석일과 오늘 사이의 공백을 보유 프리즈로 메운다.
+  // 공백이 보유량보다 크면 어차피 끊긴 것이므로 소모하지 않는다. 소모한 일수를 반환.
+  function applyFreezes(s) {
+    if (!s.freezes || s.activity.length === 0) return 0;
+    const gap = [];
+    const d = new Date();
+    d.setDate(d.getDate() - 1);                      // 어제부터 거꾸로 훑기
+    while (!wasActive(s, todayStr(d))) {
+      gap.push(todayStr(d));
+      if (gap.length > s.freezes) return 0;          // 프리즈로 못 메우는 공백 → 소모 안 함
+      d.setDate(d.getDate() - 1);
+      // 최초 학습일 이전까지 내려가면 지킬 체인이 없음
+      if (todayStr(d) < s.activity[0]) return 0;
+    }
+    if (gap.length === 0) return 0;                  // 공백 없음
+    s.freezes -= gap.length;
+    s.frozenDays.push(...gap);
+    save(s);
+    return gap.length;
+  }
+
+  // 프리즈 구매 (XP 소비 — 레벨 계산용 누적 xp는 유지, spentXp로 잔액만 차감)
+  function buyFreeze(s) {
+    if (s.freezes >= FREEZE_MAX) return false;
+    if (xpBalance(s) < FREEZE_COST) return false;
+    s.spentXp = (s.spentXp || 0) + FREEZE_COST;
+    s.freezes++;
+    save(s);
+    return true;
+  }
+
+  // 쓸 수 있는 XP 잔액
+  function xpBalance(s) {
+    return s.xp - (s.spentXp || 0);
+  }
+
+  // ===== 단어별 이력 =====
+  // 퀴즈 첫 시도 결과 기록 (재시험 라운드는 기록하지 않음 — app.js에서 제어)
+  function recordAnswer(s, wordId, correct) {
+    if (!s.wordStats) s.wordStats = {};
+    const st = s.wordStats[wordId] || (s.wordStats[wordId] = { seen: 0, wrong: 0 });
+    st.seen++;
+    if (!correct) st.wrong++;
+    save(s);
   }
 
   // 레벨 테스트 결과를 커리큘럼에 반영 (시작 단어 위치 + 하루 분량)
@@ -208,10 +286,12 @@ const SRS = (() => {
 
   return {
     REVIEW_OFFSETS, STAGE_NAMES, XP_RULES,
+    FREEZE_COST, FREEZE_MAX, REVIEW_DAILY_CAP,
     todayStr, daysBetween,
     load, save, reset,
-    nextNewWords, learnedToday, dueReviews,
+    nextNewWords, learnedToday, dueReviews, dueReviewsToday,
     completeLearn, completeReview,
+    applyFreezes, buyFreeze, xpBalance, recordAnswer,
     applyPlacement, skipOnboarding, clearOnboarding,
     summary, levelInfo
   };

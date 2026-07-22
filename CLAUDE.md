@@ -47,6 +47,11 @@
   - 테마 구조(data.js): `_RAW_THEMES`(원본 112종, id 목록) → `_pick()`으로 합쳐 `THEME_GROUPS`(14개 상황 그룹 × 묶음 테마 43종) → `THEMES`는 `THEME_GROUPS`에서 평평하게 파생
 - 레벨 테스트(온보딩): 첫 실행 시 `renderOnboarding` — 난이도 사다리 10단어 자가진단(`PLACEMENT_LADDER`, id 목록) → 레벨/예상 어휘량 산정(`computePlacement`, `LEVELS` — **rank 기준**) → `SRS.applyPlacement`로 `settings.startId`(시작 단어 id)·`newPerDay` 세팅. 기존 학습 기록 있으면 자동으로 온보딩 완료 처리. 설정에서 "다시 테스트"(`clearOnboarding`). rank가 클수록 어려운 단어라는 전제 활용 (위 "id / rank 원칙" 참조)
 - 게임화: 경험치(`XP_RULES`: 출석 20, 새 단어 5, 복습 단어 8) → 레벨(`levelInfo`) → 캐릭터 진화(`EVOS`), 뱃지(`BADGES`) — 진화/뱃지는 app.js, XP는 srs.js
+- 유지(리텐션) 장치 (srs.js):
+  - **스트릭 프리즈**: XP 200으로 구매(최대 2개, `buyFreeze`), 공백일을 자동 방어(`applyFreezes` — 앱 시작 시 호출, `frozenDays`에 기록). 레벨용 누적 `xp`는 유지하고 `spentXp`로 잔액만 차감(`xpBalance`) — 캐릭터 레벨은 안 떨어짐
+  - **복습 상한**: 하루 최대 3개 배치(`REVIEW_DAILY_CAP`, `dueReviewsToday`) — 초과분 자동 순연, 급한(밀린 일수 큰) 순. 홈에 순연 안내 카드
+  - **복귀 화면**: 3일+ 공백 && 밀린 복습 2개+ → 하루 1회 환영 화면(`renderComeback`, localStorage `ew_comeback_v1`)
+  - **단어별 이력**: `state.wordStats[id] = { seen, wrong }` — 퀴즈 세션 첫 시도만 기록(`recordAnswer`, 재시험 제외). 취약 단어 표시·리치 큐·인출 사다리(P1)의 데이터 기반
 
 ## 분석 (GA4)
 - 측정 ID는 `index.html` 상단 `window.GA_ID` 한 곳에서 관리 (placeholder면 GA 미로드)

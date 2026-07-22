@@ -3,6 +3,7 @@
   const $screen = document.getElementById("screen");
   const $streak = document.getElementById("streak-badge");
   let state = SRS.load();
+  let freezeNotice = 0;   // 이번 세션에 프리즈가 지켜준 일수 (홈에서 1회 안내 후 0)
 
   // ===== 캐릭터 진화 단계 (레벨 도달 시 진화) =====
   const EVOS = [
@@ -77,7 +78,8 @@
   }
 
   function updateStreak() {
-    $streak.textContent = `🔥 ${SRS.summary(state).streak}일`;
+    const fz = state.freezes > 0 ? ` · 🧊${state.freezes}` : "";
+    $streak.textContent = `🔥 ${SRS.summary(state).streak}일${fz}`;
   }
 
   // ===== 발음 듣기 (Web Speech API — 브라우저 내장 TTS) =====
@@ -881,20 +883,64 @@
   }
 
   // ===== 홈 화면 =====
+  // 3일 이상 공백 후 복습이 밀린 채 돌아온 사용자 감지
+  function comebackInfo() {
+    if (state.activity.length === 0) return null;
+    const last = state.activity[state.activity.length - 1];
+    const awayDays = SRS.daysBetween(last, SRS.todayStr()) - 1;   // 마지막 학습일과 오늘 사이 공백
+    if (awayDays < 3) return null;
+    const { due, deferred } = SRS.dueReviewsToday(state);
+    const total = due.length + deferred;
+    if (total < 2) return null;
+    return { awayDays, total };
+  }
+
+  // 복귀 환영 화면 — 밀린 복습이 벽이 아니라 계단으로 보이게
+  function renderComeback(cb) {
+    $screen.innerHTML = `
+      <div class="result-box comeback-box">
+        <div class="emoji">😊</div>
+        <h2>다시 만나 반가워요!</h2>
+        <p>${cb.awayDays}일 만이에요. 밀린 복습 <b>${cb.total}개</b>가 있지만<br>
+        하루 <b>최대 ${SRS.REVIEW_DAILY_CAP}개씩</b>만 나눠서 나와요.<br>
+        오늘은 가볍게 다시 시작하면 충분해요 🌱</p>
+        <button class="btn btn-primary btn-block" id="btn-comeback-go" style="margin-top:14px">가볍게 시작하기</button>
+      </div>`;
+    document.getElementById("btn-comeback-go").addEventListener("click", renderHome);
+  }
+
   function renderHome() {
     state = SRS.load();
     updateStreak();
 
+    // 복귀 사용자에게는 하루 1회 환영 화면 먼저
+    const cb = comebackInfo();
+    if (cb && localStorage.getItem("ew_comeback_v1") !== SRS.todayStr()) {
+      localStorage.setItem("ew_comeback_v1", SRS.todayStr());
+      return renderComeback(cb);
+    }
+
     const newWords = SRS.nextNewWords(state);
     const learnedToday = SRS.learnedToday(state);
-    const reviews = SRS.dueReviews(state);
+    const { due: reviews, deferred } = SRS.dueReviewsToday(state);
 
     let html = `
       <div class="greeting">
         <h2>오늘의 학습 🎯</h2>
         <p>${SRS.todayStr()} · 에빙하우스 곡선으로 똑똑하게 외우기</p>
-      </div>
-      ${charCardHtml(true)}`;
+      </div>`;
+
+    // 프리즈가 연속 기록을 지켜준 경우 1회 알림
+    if (freezeNotice > 0) {
+      html += `
+        <div class="card freeze-notice">
+          <div class="card-title">🧊 스트릭 프리즈가 ${freezeNotice}일을 지켜줬어요!</div>
+          <div class="card-sub">연속 ${SRS.summary(state).streak}일 기록이 그대로 이어져요.</div>
+        </div>`;
+      freezeNotice = 0;
+    }
+
+    html += charCardHtml(true);
 
     // 새 단어 카드
     if (learnedToday) {
@@ -924,7 +970,7 @@
         </div>`;
     }
 
-    // 복습 카드들
+    // 복습 카드들 (하루 최대 3개 — 초과분은 자동 순연)
     if (reviews.length > 0) {
       for (const r of reviews) {
         const ws = wordsByIds(r.batch.wordIds);
@@ -938,6 +984,12 @@
               </div>
               <button class="btn btn-green btn-sm btn-review" data-batch="${r.batch.id}" data-stage="${r.stage}">시험</button>
             </div>
+          </div>`;
+      }
+      if (deferred > 0) {
+        html += `
+          <div class="card deferred-note">
+            <div class="card-sub">⏳ 밀린 복습 ${deferred}개는 내일부터 이어서 나와요. 하루 최대 ${SRS.REVIEW_DAILY_CAP}개씩만 — 부담 없이 가요!</div>
           </div>`;
       }
     } else {
@@ -1062,6 +1114,8 @@
       btn.addEventListener("click", () => {
         const picked = btn.dataset.mean;
         const correct = picked === w.m;
+        // 단어별 이력: 세션 첫 시도만 기록 (재시험 라운드 제외)
+        if (quiz.round === 1) SRS.recordAnswer(state, w.id, correct);
         document.querySelectorAll(".choice").forEach(b => {
           b.disabled = true;
           if (b.dataset.mean === w.m) b.classList.add("correct");
@@ -1260,6 +1314,19 @@
           <button class="btn btn-ghost btn-sm" id="btn-retest">다시 테스트</button>
         </div>
       </div>
+      <div class="card">
+        <div class="setting-row">
+          <div>
+            <div class="card-title" style="font-size:15px">🧊 스트릭 프리즈 <span class="freeze-count">${state.freezes} / ${SRS.FREEZE_MAX}개 보유</span></div>
+            <div class="card-sub">하루 놓쳐도 연속 기록을 지켜줘요 · 내 XP ${SRS.xpBalance(state).toLocaleString()}</div>
+          </div>
+          ${state.freezes >= SRS.FREEZE_MAX
+            ? `<button class="btn btn-ghost btn-sm" disabled>보유 한도</button>`
+            : SRS.xpBalance(state) < SRS.FREEZE_COST
+              ? `<button class="btn btn-ghost btn-sm" disabled>${SRS.FREEZE_COST} XP 필요</button>`
+              : `<button class="btn btn-primary btn-sm" id="btn-buy-freeze">${SRS.FREEZE_COST} XP로 구매</button>`}
+        </div>
+      </div>
       <div class="card" id="card-notif">
         <div class="setting-row">
           <div>
@@ -1350,6 +1417,14 @@
       SRS.clearOnboarding(state);
       state = SRS.load();
       renderOnboarding();
+    });
+    const btnBuyFreeze = document.getElementById("btn-buy-freeze");
+    if (btnBuyFreeze) btnBuyFreeze.addEventListener("click", () => {
+      if (SRS.buyFreeze(state)) {
+        state = SRS.load();
+        updateStreak();
+        renderSettings();
+      }
     });
     document.getElementById("btn-reset").addEventListener("click", () => {
       if (confirm("정말 모든 학습 기록을 초기화할까요?")) {
@@ -1603,6 +1678,10 @@
 
   // 시작
   state = SRS.load();
+
+  // 공백일을 프리즈로 자동 방어 (소모 시 홈에서 1회 안내)
+  freezeNotice = SRS.applyFreezes(state);
+  if (freezeNotice > 0) state = SRS.load();
 
   if (localStorage.getItem("ew_pending_new_user")) {
     // 이메일 가입 후 인증 대기 상태로 재진입 — 레거시 감지 건너뛰고 환영화면 표시
