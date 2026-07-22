@@ -1030,22 +1030,6 @@
 
     html += charCardHtml(true);
 
-    // 데일리 퀘스트 (3종 달성 → 보너스 XP)
-    const daily = getDaily();
-    const q1 = learnedToday;
-    const q2 = reviews.length === 0;               // 오늘 도래분을 모두 끝냈으면 달성 (도래 0인 날도 달성)
-    const q3 = daily.listens >= 5;
-    const questAll = q1 && q2 && q3;
-    const questClaimed = state.questClaimedOn === SRS.todayStr();
-    html += `
-      <div class="card quest-card">
-        <div class="card-title" style="font-size:15px">📋 오늘의 퀘스트${questClaimed ? ` <span class="quest-done-tag">완료 🎉</span>` : ""}</div>
-        <div class="quest-row${q1 ? " done" : ""}"><span>${q1 ? "✅" : "⬜"}</span> 새 단어 외우기</div>
-        <div class="quest-row${q2 ? " done" : ""}"><span>${q2 ? "✅" : "⬜"}</span> 오늘의 복습 모두 끝내기</div>
-        <div class="quest-row${q3 ? " done" : ""}"><span>${q3 ? "✅" : "⬜"}</span> 발음 5회 듣기 <span class="quest-count">${Math.min(daily.listens, 5)}/5</span></div>
-        ${questAll && !questClaimed ? `<button class="btn btn-primary btn-block btn-sm" id="btn-quest-claim" style="margin-top:10px">🎁 보너스 +${SRS.QUEST_BONUS_XP} XP 받기</button>` : ""}
-      </div>`;
-
     // 새 단어 카드
     if (learnedToday) {
       html += `
@@ -1104,6 +1088,29 @@
         </div>`;
     }
 
+    // 데일리 퀘스트 — 기본 접힘, 3종 달성 후 미수령일 때만 자동 펼침 (본편 아래 보조 모듈)
+    const daily = getDaily();
+    const q1 = learnedToday;
+    const q2 = reviews.length === 0;               // 오늘 도래분을 모두 끝냈으면 달성 (도래 0인 날도 달성)
+    const q3 = daily.listens >= 5;
+    const questDone = [q1, q2, q3].filter(Boolean).length;
+    const questAll = questDone === 3;
+    const questClaimed = state.questClaimedOn === SRS.todayStr();
+    const questOpen = questAll && !questClaimed;
+    html += `
+      <div class="card quest-card${questOpen ? " open" : ""}" id="quest-card">
+        <div class="quest-head" id="quest-head">
+          <div class="card-title" style="font-size:15px">📋 오늘의 퀘스트 <span class="quest-progress">${questDone}/3</span>${questClaimed ? ` <span class="quest-done-tag">완료 🎉</span>` : ""}</div>
+          <span class="quest-chevron">▾</span>
+        </div>
+        <div class="quest-body">
+          <div class="quest-row${q1 ? " done" : ""}"><span>${q1 ? "✅" : "⬜"}</span> 새 단어 외우기</div>
+          <div class="quest-row${q2 ? " done" : ""}"><span>${q2 ? "✅" : "⬜"}</span> 오늘의 복습 모두 끝내기</div>
+          <div class="quest-row${q3 ? " done" : ""}"><span>${q3 ? "✅" : "⬜"}</span> 발음 5회 듣기 <span class="quest-count">${Math.min(daily.listens, 5)}/5</span></div>
+          ${questAll && !questClaimed ? `<button class="btn btn-primary btn-block btn-sm" id="btn-quest-claim" style="margin-top:10px">🎁 보너스 +${SRS.QUEST_BONUS_XP} XP 받기</button>` : ""}
+        </div>
+      </div>`;
+
     // 졸업 단어 방어전 (선택 보너스 — 졸업 단어 10개 이상일 때)
     const gradWords = SRS.graduatedWords(state);
     if (gradWords.length >= 10) {
@@ -1135,6 +1142,10 @@
         startQuiz(wordsByIds(batch.wordIds), { batchId: batch.id, stage: Number(btn.dataset.stage) });
       });
     });
+    const questHead = document.getElementById("quest-head");
+    if (questHead) questHead.addEventListener("click", () =>
+      document.getElementById("quest-card").classList.toggle("open")
+    );
     const btnQuest = document.getElementById("btn-quest-claim");
     if (btnQuest) btnQuest.addEventListener("click", () => {
       if (SRS.claimDailyQuest(state)) {
@@ -1580,9 +1591,12 @@
   // ===== 설정 화면 =====
   function renderSettings() {
     state = SRS.load();
+    const accountHtml = accountCardHtml();
     $screen.innerHTML = `
       <div class="greeting"><h2>설정 ⚙️</h2><p>학습 방식을 조절해요</p></div>
-      ${accountCardHtml()}
+      ${accountHtml ? `<div class="settings-section">계정</div>${accountHtml}` : ""}
+
+      <div class="settings-section">학습</div>
       <div class="card">
         <div class="setting-row">
           <div>
@@ -1593,8 +1607,6 @@
             ${[3, 5, 7, 10].map(n => `<option value="${n}" ${state.settings.newPerDay === n ? "selected" : ""}>${n}개</option>`).join("")}
           </select>
         </div>
-      </div>
-      <div class="card">
         <div class="setting-row">
           <div>
             <div class="card-title" style="font-size:15px">내 단어 레벨</div>
@@ -1602,8 +1614,6 @@
           </div>
           <button class="btn btn-ghost btn-sm" id="btn-retest">다시 테스트</button>
         </div>
-      </div>
-      <div class="card">
         <div class="setting-row">
           <div>
             <div class="card-title" style="font-size:15px">🧊 스트릭 프리즈 <span class="freeze-count">${state.freezes} / ${SRS.FREEZE_MAX}개 보유</span></div>
@@ -1615,41 +1625,7 @@
               ? `<button class="btn btn-ghost btn-sm" disabled>${SRS.FREEZE_COST} XP 필요</button>`
               : `<button class="btn btn-primary btn-sm" id="btn-buy-freeze">${SRS.FREEZE_COST} XP로 구매</button>`}
         </div>
-      </div>
-      <div class="card">
-        <div class="setting-row">
-          <div>
-            <div class="card-title" style="font-size:15px">🔊 단어 자동 발음</div>
-            <div class="card-sub">학습 카드가 넘어갈 때 자동으로 읽어줘요</div>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="autospeak-toggle" ${state.settings.autoSpeak !== false ? "checked" : ""}>
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-      </div>
-      <div class="card" id="card-notif">
-        <div class="setting-row">
-          <div>
-            <div class="card-title" style="font-size:15px">🔔 매일 알림</div>
-            <div class="card-sub" id="notif-status-text">확인 중...</div>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="notif-toggle">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-        <div id="notif-time-row" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-          <div style="display:flex;align-items:center;justify-content:space-between">
-            <div class="card-sub">알림 시간</div>
-            <select id="notif-hour-sel" class="notif-hour-sel">
-              ${Array.from({length:24},(_,i)=>`<option value="${i}">${String(i).padStart(2,"0")}:00</option>`).join("")}
-            </select>
-          </div>
-        </div>
-      </div>
-      <div class="card" id="card-theme-filter">
-        <div class="setting-row">
+        <div class="setting-row tail" id="card-theme-filter">
           <div>
             <div class="card-title" style="font-size:15px">📂 카테고리 필터</div>
             <div class="card-sub" id="theme-filter-summary">${(() => { const n = (state.settings.selectedThemes||[]).length; return n ? n+"개 카테고리 선택됨" : "전체 출제 중"; })()}</div>
@@ -1674,15 +1650,40 @@
           </div>
         </div>
       </div>
-      <div class="card">
+
+      <div class="settings-section">알림 · 소리</div>
+      <div class="card" id="card-notif">
         <div class="setting-row">
           <div>
-            <div class="card-title" style="font-size:15px">학습 기록 초기화</div>
-            <div class="card-sub">모든 진도가 삭제돼요 (단어 데이터는 유지)</div>
+            <div class="card-title" style="font-size:15px">🔊 단어 자동 발음</div>
+            <div class="card-sub">학습 카드가 넘어갈 때 자동으로 읽어줘요</div>
           </div>
-          <button class="btn btn-danger btn-sm" id="btn-reset">초기화</button>
+          <label class="toggle-switch">
+            <input type="checkbox" id="autospeak-toggle" ${state.settings.autoSpeak !== false ? "checked" : ""}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row tail">
+          <div>
+            <div class="card-title" style="font-size:15px">🔔 매일 알림</div>
+            <div class="card-sub" id="notif-status-text">확인 중...</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="notif-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div id="notif-time-row" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div class="card-sub">알림 시간</div>
+            <select id="notif-hour-sel" class="notif-hour-sel">
+              ${Array.from({length:24},(_,i)=>`<option value="${i}">${String(i).padStart(2,"0")}:00</option>`).join("")}
+            </select>
+          </div>
         </div>
       </div>
+
+      <div class="settings-section">기타</div>
       <div class="card">
         <div class="setting-row">
           <div>
@@ -1692,11 +1693,19 @@
           <button class="btn btn-ghost btn-sm" id="btn-show-tutorial">다시 보기</button>
         </div>
       </div>
-      <div class="card">
-        <div class="card-sub" style="text-align:center">
-          하루보카 v0.1<br>에빙하우스 망각곡선 기반 영어회화 단어암기
+
+      <div class="settings-section danger">위험 구역</div>
+      <div class="card danger-zone">
+        <div class="setting-row">
+          <div>
+            <div class="card-title" style="font-size:15px">학습 기록 초기화</div>
+            <div class="card-sub">모든 진도·경험치가 삭제되며 되돌릴 수 없어요</div>
+          </div>
+          <button class="btn btn-danger btn-sm" id="btn-reset">초기화</button>
         </div>
-      </div>`;
+      </div>
+
+      <p class="settings-version">하루보카 v0.1<br>에빙하우스 망각곡선 기반 영어회화 단어암기</p>`;
 
     const btnGoogle = document.getElementById("btn-login-google");
     if (btnGoogle) btnGoogle.addEventListener("click", () => window.Cloud.signInGoogle());
@@ -1732,7 +1741,7 @@
       SRS.save(state);
     });
     document.getElementById("btn-reset").addEventListener("click", () => {
-      if (confirm("정말 모든 학습 기록을 초기화할까요?")) {
+      if (confirm("모든 진도·경험치·연속 기록이 삭제되며 되돌릴 수 없어요.\n정말 초기화할까요?")) {
         SRS.reset();
         state = SRS.load();
         goHomeTab();

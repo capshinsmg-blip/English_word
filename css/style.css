@@ -260,6 +260,17 @@ body {
 .batch-status.grad { color: var(--green); }
 
 /* ===== 설정 ===== */
+/* 섹션 헤더 — 그룹 카드 위 라벨 (계정/학습/알림·소리/기타/위험 구역) */
+.settings-section {
+  font-size: 12px; font-weight: 800; letter-spacing: 0.05em;
+  color: var(--text-sub); margin: 20px 4px 8px;
+}
+.settings-section.danger { color: var(--red); }
+.card.danger-zone { border-color: var(--red); }
+.settings-version {
+  text-align: center; font-size: 12px; color: var(--text-sub);
+  line-height: 1.6; margin: 24px 0 8px;
+}
 .setting-row {
   display: flex;
   justify-content: space-between;
@@ -268,6 +279,11 @@ body {
   border-bottom: 1px solid var(--border);
 }
 .setting-row:last-child { border-bottom: none; }
+/* 그룹 카드: 첫 행 위·마지막 행 아래 여백은 카드 패딩이 담당 → 행 간격 컴팩트 */
+.card > .setting-row:first-child { padding-top: 0; }
+.card > .setting-row:last-child { padding-bottom: 0; }
+/* 펼침 body(알림 시간·카테고리 필터) 앞의 마지막 행 — 구분선·아래 여백 제거 */
+.setting-row.tail { border-bottom: none; padding-bottom: 0; }
 .setting-row select {
   font-family: inherit;
   font-size: 14px;
@@ -989,7 +1005,14 @@ body.onboarding .ad-banner { display: none; }
 .cat-card.weak-note { border: 1.5px solid var(--red); }
 .cat-card.weak-note .cat-name { color: var(--red); font-weight: 700; }
 
-/* ===== 데일리 퀘스트 ===== */
+/* ===== 데일리 퀘스트 (기본 접힘 — 헤더 탭으로 펼침) ===== */
+.quest-head { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+.quest-head .card-title { margin-bottom: 0; }
+.quest-progress { font-size: 12px; font-weight: 700; color: var(--text-sub); }
+.quest-chevron { font-size: 13px; color: var(--text-sub); transition: transform 0.15s; }
+.quest-card.open .quest-chevron { transform: rotate(180deg); }
+.quest-body { display: none; margin-top: 8px; }
+.quest-card.open .quest-body { display: block; }
 .quest-card .quest-row {
   display: flex; align-items: center; gap: 8px;
   font-size: 14px; color: var(--text); padding: 5px 0;
