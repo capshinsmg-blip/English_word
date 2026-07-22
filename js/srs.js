@@ -40,8 +40,9 @@ const SRS = (() => {
       wordStats: {},        // 단어별 이력: { [id]: { seen, wrong, fixed } } — fixed = 복습찬스에서 회복한 횟수
       freezes: 0,           // 보유 중인 스트릭 프리즈
       spentXp: 0,           // 프리즈 구매 등으로 쓴 XP (레벨은 누적 xp 기준이라 안 떨어짐)
-      frozenDays: [],       // 프리즈로 지켜진 날짜들 (streak 계산에 출석으로 인정)
-      questClaimedOn: null  // 데일리 퀘스트 보너스를 받은 날짜 (하루 1회)
+      frozenDays: [],        // 프리즈로 지켜진 날짜들 (streak 계산에 출석으로 인정)
+      questClaimedOn: null,  // 데일리 퀘스트 보너스를 받은 날짜 (하루 1회)
+      defensePlayedOn: null  // 졸업 단어 방어전 보너스를 받은 날짜 (하루 1회, 연습은 무제한)
     };
   }
 
@@ -67,6 +68,7 @@ const SRS = (() => {
       if (typeof raw.spentXp === "number") s.spentXp = raw.spentXp;
       if (Array.isArray(raw.frozenDays)) s.frozenDays = raw.frozenDays;
       if (typeof raw.questClaimedOn === "string") s.questClaimedOn = raw.questClaimedOn;
+      if (typeof raw.defensePlayedOn === "string") s.defensePlayedOn = raw.defensePlayedOn;
       if (raw.settings && typeof raw.settings.autoSpeak === "boolean") s.settings.autoSpeak = raw.settings.autoSpeak;
       return s;
     } catch {
@@ -289,6 +291,25 @@ const SRS = (() => {
     return true;
   }
 
+  // ===== 졸업 단어 방어전 =====
+  // 3차 복습까지 끝낸(졸업) 단어들 — 장기 기억 유지를 위한 보너스 퀴즈 풀
+  const DEFENSE_XP = 15;
+  function graduatedWords(s) {
+    const ids = s.batches.filter(b => b.reviews[3]).flatMap(b => b.wordIds);
+    return ids.map(id => WORDS.find(w => w.id === id)).filter(Boolean);
+  }
+
+  // 방어전 완료 처리 — 보너스 XP는 하루 1회, 이후 도전은 XP 없이 연습만.
+  // 방어전도 학습 활동이므로 출석(스트릭)으로 인정
+  function completeDefense(s) {
+    const first = s.defensePlayedOn !== todayStr();
+    s.defensePlayedOn = todayStr();
+    if (first) s.xp += DEFENSE_XP;
+    markActivity(s);
+    save(s);
+    return first ? DEFENSE_XP : 0;
+  }
+
   // 레벨 테스트 결과를 커리큘럼에 반영 (시작 단어 위치 + 하루 분량)
   function applyPlacement(s, placement) {
     s.placement = placement;               // { key, label, icon, vocab, startId, newPerDay, ... }
@@ -325,13 +346,14 @@ const SRS = (() => {
 
   return {
     REVIEW_OFFSETS, STAGE_NAMES, XP_RULES,
-    FREEZE_COST, FREEZE_MAX, REVIEW_DAILY_CAP, QUEST_BONUS_XP,
+    FREEZE_COST, FREEZE_MAX, REVIEW_DAILY_CAP, QUEST_BONUS_XP, DEFENSE_XP,
     todayStr, daysBetween,
     load, save, reset,
     nextNewWords, learnedToday, dueReviews, dueReviewsToday,
     completeLearn, completeReview,
     applyFreezes, buyFreeze, xpBalance, recordAnswer,
     leechWords, markLeechFixed, claimDailyQuest,
+    graduatedWords, completeDefense,
     applyPlacement, skipOnboarding, clearOnboarding,
     summary, levelInfo
   };

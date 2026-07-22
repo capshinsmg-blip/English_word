@@ -940,6 +940,13 @@ body.onboarding .ad-banner { display: none; }
 }
 .auth-link:hover { opacity: 0.8; }
 
+/* ===== 방어전 · 오답노트 ===== */
+.badge-weak { background: var(--red-light); color: var(--red); }
+.badge-defense { background: var(--amber-light); color: var(--amber); }
+.defense-card { border-left: 4px solid var(--amber); }
+.cat-card.weak-note { border: 1.5px solid var(--red); }
+.cat-card.weak-note .cat-name { color: var(--red); font-weight: 700; }
+
 /* ===== 데일리 퀘스트 ===== */
 .quest-card .quest-row {
   display: flex; align-items: center; gap: 8px;

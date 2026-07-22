@@ -58,6 +58,9 @@
 - 자동 발음: 학습 카드 렌더 시 자동 TTS (`settings.autoSpeak`, 기본 on, 설정 토글)
 - 레벨테스트 회상 검증: 자가 신고 후 "알아요" 중 가장 어려운 2개를 4지선다로 검증(`startVerify`) — 틀리면 모름으로 정정
 - iOS 설치 배너: iOS Safari && 미설치 시 홈에 "홈 화면에 추가" 안내 (localStorage `ew_ios_banner_v1`로 닫기 기억)
+- 졸업 단어 방어전 (홈 카드, 졸업 10개+): 랜덤 10문제 4유형 믹스, 첫 완료 +15 XP/일(`completeDefense`, `defensePlayedOn`) + 출석 인정. 틀리면 wordStats에 기록 → 리치 큐로 순환
+- 오답노트 (단어장 최상단 카드): 취약(wrong > fixed) 단어 목록 + "🎯 집중 연습"(stage "practice", XP 없음) — 첫 시도 정답 시 fixed 회복으로 노트에서 빠짐. 단어 배지에 "🔺 취약" 우선 표시(`isWeakWord`)
+- 리그·발음평가·홈위젯은 유저 풀 확보·네이티브 전환 후 과제 (UX 분석 P2 후순위)
 
 ## 분석 (GA4)
 - 측정 ID는 `index.html` 상단 `window.GA_ID` 한 곳에서 관리 (placeholder면 GA 미로드)

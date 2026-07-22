@@ -1091,6 +1091,23 @@
         </div>`;
     }
 
+    // 졸업 단어 방어전 (선택 보너스 — 졸업 단어 10개 이상일 때)
+    const gradWords = SRS.graduatedWords(state);
+    if (gradWords.length >= 10) {
+      const playedToday = state.defensePlayedOn === SRS.todayStr();
+      html += `
+        <div class="card defense-card">
+          <span class="badge badge-defense">보너스</span>
+          <div class="card-row">
+            <div>
+              <div class="card-title">🛡️ 졸업 단어 방어전</div>
+              <div class="card-sub">졸업한 ${gradWords.length}개 중 랜덤 10문제 — 아직 기억하나요?${playedToday ? "" : ` 첫 완료 +${SRS.DEFENSE_XP} XP`}</div>
+            </div>
+            <button class="btn ${playedToday ? "btn-ghost" : "btn-primary"} btn-sm" id="btn-defense">${playedToday ? "한번 더" : "도전"}</button>
+          </div>
+        </div>`;
+    }
+
     if (!learnedToday && reviews.length === 0 && newWords.length === 0) {
       html += `<div class="empty"><div class="emoji">🌙</div>오늘 할 일을 모두 끝냈어요!</div>`;
     }
@@ -1111,6 +1128,11 @@
         state = SRS.load();
         renderHome();
       }
+    });
+    const btnDefense = document.getElementById("btn-defense");
+    if (btnDefense) btnDefense.addEventListener("click", () => {
+      const pool = shuffle(SRS.graduatedWords(state)).slice(0, 10);
+      startQuiz(pool, { batchId: null, stage: "defense" });
     });
     const btnIosClose = document.getElementById("btn-ios-close");
     if (btnIosClose) btnIosClose.addEventListener("click", () => {
@@ -1202,7 +1224,9 @@
 
   // ===== 인출 사다리: 복습 차수가 오를수록 더 깊은 인출을 요구 =====
   //  0·1차 = mc(영→한 4지선다, 인지) → 2차 = rev(한→영)·listen(듣기) 교차 → 3차 = spell(철자 입력, 산출)
+  //  방어전·집중 연습은 4유형 순환 믹스
   function quizTypeFor(stage, i) {
+    if (stage === "defense" || stage === "practice") return ["mc", "rev", "listen", "spell"][i % 4];
     if (stage <= 1) return "mc";
     if (stage === 2) return i % 2 === 0 ? "rev" : "listen";
     return "spell";
@@ -1229,10 +1253,18 @@
     if (!correct) quiz.wrong.push(w);
   }
 
+  function quizStageName() {
+    const st = quiz.meta.stage;
+    if (st === 0) return "확인 시험";
+    if (st === "defense") return "🛡️ 방어전";
+    if (st === "practice") return "🎯 집중 연습";
+    return SRS.STAGE_NAMES[st];
+  }
+
   function quizHeaderHtml(w) {
-    const stageName = quiz.meta.stage === 0 ? "확인 시험" : SRS.STAGE_NAMES[quiz.meta.stage];
-    const leech = quiz.leechIds.has(w.id) ? ` · <span class="leech-tag">🔁 복습 찬스</span>` : "";
-    return `<div class="learn-progress">${stageName}${quiz.round > 1 ? ` · 재시험 ${quiz.round - 1}회차` : ""} · ${quiz.idx + 1} / ${quiz.queue.length}${leech}</div>`;
+    const leech = quiz.leechIds.has(w.id) && quiz.meta.stage !== "practice"
+      ? ` · <span class="leech-tag">🔁 복습 찬스</span>` : "";
+    return `<div class="learn-progress">${quizStageName()}${quiz.round > 1 ? ` · 재시험 ${quiz.round - 1}회차` : ""} · ${quiz.idx + 1} / ${quiz.queue.length}${leech}</div>`;
   }
 
   function renderQuizQuestion() {
@@ -1403,8 +1435,13 @@
   function finishQuiz() {
     const { meta, firstTotal, firstCorrect } = quiz;
     const perfect = firstCorrect === firstTotal;
+    const isDefense = meta.stage === "defense";
+    const isPractice = meta.stage === "practice";
     let xpGained = meta.learnXp || 0;
-    if (meta.stage >= 1 && meta.batchId) {
+    if (isDefense) {
+      xpGained = SRS.completeDefense(state);
+      state = SRS.load();
+    } else if (meta.stage >= 1 && meta.batchId) {
       const xpBefore = state.xp;
       SRS.completeReview(state, meta.batchId, meta.stage, perfect);
       state = SRS.load();
@@ -1414,18 +1451,26 @@
 
     const rate = Math.round((firstCorrect / firstTotal) * 100);
     const isFirstLearn = meta.stage === 0;
+    const title = isFirstLearn ? "오늘의 새 단어 암기 완료!"
+      : isDefense ? "방어전 완료! 🛡️"
+      : isPractice ? "집중 연습 완료! 🎯"
+      : SRS.STAGE_NAMES[meta.stage] + " 완료!";
+    const message = isFirstLearn ? "내일 1차 복습 시험이 열려요."
+      : isDefense ? "틀린 단어는 '복습 찬스'로 다시 만나요."
+      : isPractice ? "첫 시도에 맞힌 단어는 오답노트에서 빠져요."
+      : nextReviewMessage(meta.stage);
     track("quiz_complete", { stage: meta.stage, rate, perfect: perfect ? 1 : 0 });
     $screen.innerHTML = `
       <div class="result-box">
         <div class="emoji">${rate === 100 ? "🏆" : "💪"}</div>
-        <h2>${isFirstLearn ? "오늘의 새 단어 암기 완료!" : SRS.STAGE_NAMES[meta.stage] + " 완료!"}</h2>
-        ${xpGained > 0 ? `<div class="xp-gain">⚡ +${xpGained} XP${perfect && !isFirstLearn ? " · 💯 퍼펙트!" : ""}</div>` : ""}
+        <h2>${title}</h2>
+        ${xpGained > 0 ? `<div class="xp-gain">⚡ +${xpGained} XP${perfect && !isFirstLearn && !isDefense && !isPractice ? " · 💯 퍼펙트!" : ""}</div>` : ""}
         <p>첫 시도 정답률 ${rate}% (${firstCorrect}/${firstTotal})<br>
-        ${isFirstLearn ? "내일 1차 복습 시험이 열려요." : nextReviewMessage(meta.stage)}</p>
+        ${message}</p>
         ${charCardHtml(true)}
-        <button class="btn btn-primary btn-block" id="btn-home" style="margin-top:14px">홈으로</button>
+        <button class="btn btn-primary btn-block" id="btn-home" style="margin-top:14px">${isPractice ? "단어장으로" : "홈으로"}</button>
       </div>`;
-    document.getElementById("btn-home").addEventListener("click", goHomeTab);
+    document.getElementById("btn-home").addEventListener("click", isPractice ? () => { renderWordList(); } : goHomeTab);
   }
 
   function nextReviewMessage(stage) {
@@ -1792,7 +1837,14 @@
   // ===== 단어장 (상황별 카테고리 → 단어 페이지) =====
   let dictSel = null; // null = 카테고리 목록 화면, 아니면 { name, ids } = 단어 페이지
 
+  // 미해결 오답(취약) 단어인가 — 오답노트·취약 배지의 공통 기준 (리치 큐와 동일)
+  function isWeakWord(id) {
+    const st = state.wordStats && state.wordStats[id];
+    return !!st && (st.wrong || 0) > (st.fixed || 0);
+  }
+
   function wordStatusBadge(id) {
+    if (isWeakWord(id)) return `<span class="badge badge-weak">🔺 취약</span>`;
     for (const b of state.batches) {
       if (b.wordIds.includes(id)) {
         if (b.reviews[3]) return `<span class="badge badge-done">🎓 졸업</span>`;
@@ -1844,7 +1896,17 @@
     function openTheme(theme) { dictSel = theme; renderWordList(); }
 
     function renderCategories() {
-      let html = `
+      const weak = SRS.leechWords(state, 9999);
+      let html = "";
+      if (weak.length > 0) {
+        html += `
+          <button class="cat-card weak-note" data-weak="1">
+            <span class="cat-emoji">📕</span>
+            <span class="cat-text"><span class="cat-name">오답노트</span><span class="cat-count">취약 단어 ${weak.length}개 · 집중 연습으로 없애요</span></span>
+            <span class="cat-arrow">›</span>
+          </button>`;
+      }
+      html += `
         <button class="cat-card all" data-all="1">
           <span class="cat-emoji">📚</span>
           <span class="cat-text"><span class="cat-name">전체 단어 보기</span><span class="cat-count">${WORDS.length.toLocaleString()}개</span></span>
@@ -1864,7 +1926,8 @@
       $body.innerHTML = html;
       $body.querySelectorAll(".cat-card").forEach(c => {
         c.addEventListener("click", () => {
-          if (c.dataset.all) openTheme({ name: "전체 단어", ids: WORDS.map(w => w.id) });
+          if (c.dataset.weak) openTheme({ name: "📕 오답노트", ids: SRS.leechWords(state, 9999).map(w => w.id), weakNote: true });
+          else if (c.dataset.all) openTheme({ name: "전체 단어", ids: WORDS.map(w => w.id) });
           else openTheme(THEMES.find(t => t.name === c.dataset.theme));
         });
       });
@@ -1885,11 +1948,26 @@
 
   // 선택한 주제의 단어만 모아 보여주는 별도 페이지
   function renderWordPage() {
+    // 오답노트는 열 때마다 최신 취약 목록으로 갱신 (연습으로 해소된 단어 즉시 반영)
+    if (dictSel.weakNote) dictSel.ids = SRS.leechWords(state, 9999).map(w => w.id);
     const ids = new Set(dictSel.ids);
     const all = WORDS.filter(w => ids.has(w.id));
+
+    if (dictSel.weakNote && all.length === 0) {
+      $screen.innerHTML = `
+        <button class="back-btn" id="dict-back">← 단어장</button>
+        <div class="empty"><div class="emoji">🎉</div>취약 단어를 모두 해소했어요!<br>틀리는 단어가 생기면 여기 다시 모여요.</div>`;
+      document.getElementById("dict-back").addEventListener("click", () => { dictSel = null; renderWordList(); });
+      return;
+    }
+
     $screen.innerHTML = `
       <button class="back-btn" id="dict-back">← 단어장</button>
       <div class="greeting"><h2>${esc(dictSel.name)}</h2><p>${all.length.toLocaleString()}개 · 단어를 누르면 예문이 펼쳐져요</p></div>
+      ${dictSel.weakNote ? `
+        <button class="btn btn-primary btn-block" id="btn-weak-practice" style="margin-bottom:12px">
+          🎯 집중 연습 시작 (${Math.min(all.length, 10)}문제) — 맞히면 오답노트에서 빠져요
+        </button>` : ""}
       <input type="search" id="word-search" class="search-input" placeholder="🔍 이 주제 안에서 검색">
       <div id="word-list"></div>`;
 
@@ -1905,6 +1983,12 @@
     renderItems();
     $search.addEventListener("input", renderItems);
     document.getElementById("dict-back").addEventListener("click", () => { dictSel = null; renderWordList(); });
+
+    const btnPractice = document.getElementById("btn-weak-practice");
+    if (btnPractice) btnPractice.addEventListener("click", () => {
+      const pool = shuffle(all).slice(0, 10);
+      startQuiz(pool, { batchId: null, stage: "practice", leechIds: new Set(pool.map(w => w.id)) });
+    });
   }
 
   // ===== PWA 서비스워커 등록 =====
