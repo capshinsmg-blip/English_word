@@ -83,11 +83,13 @@ const SRS = (() => {
   }
 
   // 아직 학습하지 않은 단어 중 오늘 외울 새 단어 목록
-  // (레벨 테스트로 정한 startId 이전의 쉬운 단어는 "이미 아는 것"으로 보고 건너뜀)
+  // (레벨 테스트로 정한 시작 위치 이전의 쉬운 단어는 "이미 아는 것"으로 보고 건너뜀)
+  // 순서는 id가 아니라 rank(커리큘럼 순서) 기준 — data.js의 WORDS_BY_RANK/RANK_OF 참조
   function nextNewWords(s) {
     const used = new Set(s.batches.flatMap(b => b.wordIds));
     const startId = (s.settings && s.settings.startId) || 1;
-    let pool = WORDS.filter(w => w.id >= startId && !used.has(w.id));
+    const startRank = RANK_OF[startId] || 1;
+    let pool = WORDS_BY_RANK.filter(w => w.rank >= startRank && !used.has(w.id));
     const sel = s.settings && s.settings.selectedThemes;
     if (sel && sel.length > 0) {
       const allowed = new Set();

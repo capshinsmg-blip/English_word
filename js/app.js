@@ -138,8 +138,11 @@
   });
 
   // ===== 레벨 테스트 (가입/첫 실행 온보딩) =====
-  // 단어 id가 클수록 어렵고 덜 빈출 → 난이도 사다리로 10개를 뽑아 자가진단
+  // rank(커리큘럼 순서)가 클수록 어려운 단어 → 난이도 사다리로 10개를 뽑아 자가진단
+  // PLACEMENT_LADDER는 단어 id 목록 (난이도는 각 단어의 rank로 판단)
+  // ※ 콘텐츠 확장(1만 단어) 완료 시 사다리·레벨 경계 재조정 필요 — CLAUDE.md 로드맵 참조
   const PLACEMENT_LADDER = [25, 130, 300, 480, 700, 980, 1350, 1750, 2250, 2800];
+  // max = rank 상한. 최종(1만 단어) 목표 경계: 입문 600 / 초급 1800 / 중급 4200 / 중상급 7000 / 고급 ∞
   const LEVELS = [
     { key: "beginner",     icon: "🐣", label: "입문 (왕초보)", max: 299,      newPerDay: 5,  desc: "기초 회화 단어부터 차근차근 시작해요!" },
     { key: "elementary",   icon: "🌱", label: "초급",          max: 799,      newPerDay: 5,  desc: "일상에서 자주 쓰는 단어로 탄탄하게!" },
@@ -217,22 +220,26 @@
     setTimeout(() => renderPlaceResult(computePlacement(placeCtx.answers)), 1300);
   }
 
-  // 쉬운→어려운 순서로 답을 훑어, 2번 연속 모르기 전까지 아는 가장 어려운 단어 위치로 레벨 산정
+  // 쉬운→어려운 순서로 답을 훑어, 2번 연속 모르기 전까지 아는 가장 어려운 단어 위치(rank)로 레벨 산정
   function computePlacement(answers) {
     let lastKnown = 0, misses = 0;
     for (const a of answers) {
       if (a.known) { lastKnown = a.id; misses = 0; }
       else { misses++; if (misses >= 2) break; }
     }
-    const lv = LEVELS.find(l => lastKnown <= l.max) || LEVELS[LEVELS.length - 1];
-    const startId = Math.min(lastKnown + 1, WORDS.length);
-    const vocab = Math.max(30, Math.round(lastKnown / 50) * 50);
-    const totalDays = Math.ceil((WORDS.length - startId + 1) / lv.newPerDay);
-    return { key: lv.key, icon: lv.icon, label: lv.label, desc: lv.desc, vocab, startId, newPerDay: lv.newPerDay, totalDays };
+    const lastRank = lastKnown ? (RANK_OF[lastKnown] || 0) : 0;
+    const lv = LEVELS.find(l => lastRank <= l.max) || LEVELS[LEVELS.length - 1];
+    // 아는 단어 수 = lastRank 이하 rank를 가진 단어 개수 (rank가 희소해도 정확)
+    const knownCount = lastRank ? WORDS_BY_RANK.filter(w => w.rank <= lastRank).length : 0;
+    const startWord = WORDS_BY_RANK.find(w => w.rank > lastRank) || WORDS_BY_RANK[WORDS_BY_RANK.length - 1];
+    const startId = startWord.id;
+    const vocab = Math.max(30, Math.round(knownCount / 50) * 50);
+    const totalDays = Math.ceil((WORDS_BY_RANK.length - knownCount) / lv.newPerDay);
+    return { key: lv.key, icon: lv.icon, label: lv.label, desc: lv.desc, vocab, startId, skipCount: knownCount, newPerDay: lv.newPerDay, totalDays };
   }
 
   function renderPlaceResult(p) {
-    const skipCount = p.startId - 1;
+    const skipCount = p.skipCount != null ? p.skipCount : (p.startId - 1);
     $screen.innerHTML = `
       <div class="onb result">
         <div class="onb-emoji pop">${p.icon}</div>
@@ -299,7 +306,7 @@
           <h1 class="auth-hero-title">하루보카</h1>
           <p class="auth-hero-sub">에빙하우스 망각곡선으로<br>영어 단어를 효율적으로 외워요</p>
           <div class="auth-hero-pills">
-            <span>🧠 과학적 복습</span><span>📚 4,000 단어</span><span>🔔 맞춤 알림</span>
+            <span>🧠 과학적 복습</span><span>📚 ${WORDS.length.toLocaleString()} 단어</span><span>🔔 맞춤 알림</span>
           </div>
         </div>
         <div class="auth-sheet">
@@ -1472,7 +1479,8 @@
         return `<span class="badge badge-r1">학습중 ${done}/3</span>`;
       }
     }
-    if (id < ((state.settings && state.settings.startId) || 1)) return `<span class="badge badge-known">이미 알아요</span>`;
+    const startId = (state.settings && state.settings.startId) || 1;
+    if ((RANK_OF[id] || 0) < (RANK_OF[startId] || 1)) return `<span class="badge badge-known">이미 알아요</span>`;
     return `<span class="badge badge-new">미학습</span>`;
   }
 
