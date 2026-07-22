@@ -35,12 +35,13 @@ const SRS = (() => {
   function defaultState() {
     return {
       batches: [], activity: [],
-      settings: { newPerDay: 5, startId: 1, selectedThemes: [] },
+      settings: { newPerDay: 5, startId: 1, selectedThemes: [], autoSpeak: true },
       xp: 0, perfect: 0, best: 0, onboarded: false, placement: null,
-      wordStats: {},        // 단어별 이력: { [id]: { seen: 출제 수, wrong: 첫 시도 오답 수 } }
+      wordStats: {},        // 단어별 이력: { [id]: { seen, wrong, fixed } } — fixed = 복습찬스에서 회복한 횟수
       freezes: 0,           // 보유 중인 스트릭 프리즈
       spentXp: 0,           // 프리즈 구매 등으로 쓴 XP (레벨은 누적 xp 기준이라 안 떨어짐)
-      frozenDays: []        // 프리즈로 지켜진 날짜들 (streak 계산에 출석으로 인정)
+      frozenDays: [],       // 프리즈로 지켜진 날짜들 (streak 계산에 출석으로 인정)
+      questClaimedOn: null  // 데일리 퀘스트 보너스를 받은 날짜 (하루 1회)
     };
   }
 
@@ -65,6 +66,8 @@ const SRS = (() => {
       if (typeof raw.freezes === "number") s.freezes = raw.freezes;
       if (typeof raw.spentXp === "number") s.spentXp = raw.spentXp;
       if (Array.isArray(raw.frozenDays)) s.frozenDays = raw.frozenDays;
+      if (typeof raw.questClaimedOn === "string") s.questClaimedOn = raw.questClaimedOn;
+      if (raw.settings && typeof raw.settings.autoSpeak === "boolean") s.settings.autoSpeak = raw.settings.autoSpeak;
       return s;
     } catch {
       return defaultState();
@@ -250,6 +253,42 @@ const SRS = (() => {
     save(s);
   }
 
+  // ===== 리치 큐 (틀린 단어 재출제) =====
+  // 미해결 오답(wrong > fixed) 단어를 미해결 횟수 큰 순으로 최대 n개 반환
+  // → 다음 새 단어 확인 시험에 "복습 찬스"로 끼워 출제
+  function leechWords(s, n) {
+    if (!s.wordStats) return [];
+    const ids = Object.keys(s.wordStats)
+      .filter(id => (s.wordStats[id].wrong || 0) > (s.wordStats[id].fixed || 0))
+      .sort((a, b) => {
+        const pa = (s.wordStats[a].wrong || 0) - (s.wordStats[a].fixed || 0);
+        const pb = (s.wordStats[b].wrong || 0) - (s.wordStats[b].fixed || 0);
+        return pb - pa;
+      })
+      .slice(0, n)
+      .map(Number);
+    return ids.map(id => WORDS.find(w => w.id === id)).filter(Boolean);
+  }
+
+  // 복습 찬스에서 첫 시도 정답 → 미해결 오답 1회 회복
+  function markLeechFixed(s, wordId) {
+    const st = s.wordStats && s.wordStats[wordId];
+    if (!st) return;
+    st.fixed = (st.fixed || 0) + 1;
+    save(s);
+  }
+
+  // ===== 데일리 퀘스트 =====
+  // 3종(새 단어·복습·발음 듣기) 모두 달성 시 보너스 XP — 하루 1회
+  const QUEST_BONUS_XP = 30;
+  function claimDailyQuest(s) {
+    if (s.questClaimedOn === todayStr()) return false;
+    s.questClaimedOn = todayStr();
+    s.xp += QUEST_BONUS_XP;
+    save(s);
+    return true;
+  }
+
   // 레벨 테스트 결과를 커리큘럼에 반영 (시작 단어 위치 + 하루 분량)
   function applyPlacement(s, placement) {
     s.placement = placement;               // { key, label, icon, vocab, startId, newPerDay, ... }
@@ -286,12 +325,13 @@ const SRS = (() => {
 
   return {
     REVIEW_OFFSETS, STAGE_NAMES, XP_RULES,
-    FREEZE_COST, FREEZE_MAX, REVIEW_DAILY_CAP,
+    FREEZE_COST, FREEZE_MAX, REVIEW_DAILY_CAP, QUEST_BONUS_XP,
     todayStr, daysBetween,
     load, save, reset,
     nextNewWords, learnedToday, dueReviews, dueReviewsToday,
     completeLearn, completeReview,
     applyFreezes, buyFreeze, xpBalance, recordAnswer,
+    leechWords, markLeechFixed, claimDailyQuest,
     applyPlacement, skipOnboarding, clearOnboarding,
     summary, levelInfo
   };

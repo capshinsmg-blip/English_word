@@ -940,6 +940,43 @@ body.onboarding .ad-banner { display: none; }
 }
 .auth-link:hover { opacity: 0.8; }
 
+/* ===== 데일리 퀘스트 ===== */
+.quest-card .quest-row {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; color: var(--text); padding: 5px 0;
+}
+.quest-card .quest-row.done { color: var(--text-sub); }
+.quest-card .quest-row.done { text-decoration: line-through; text-decoration-color: var(--border); }
+.quest-count { margin-left: auto; font-size: 12px; color: var(--text-sub); font-variant-numeric: tabular-nums; }
+.quest-done-tag { font-size: 12px; color: var(--green); font-weight: 600; margin-left: 4px; }
+
+/* ===== 퀴즈 인출 사다리 (한→영 · 듣기 · 철자) ===== */
+.quiz-mean { font-size: 22px !important; line-height: 1.4; }
+.listen-play {
+  width: 84px; height: 84px; border-radius: 50%;
+  background: var(--primary-light); border: 2px solid var(--primary);
+  font-size: 36px; cursor: pointer; margin: 8px auto 4px; display: block;
+  transition: transform .1s;
+}
+.listen-play:active { transform: scale(0.93); }
+.spell-row { display: flex; gap: 8px; margin: 16px 0 4px; }
+.spell-input {
+  flex: 1; padding: 14px 16px; font-size: 17px;
+  border: 2px solid var(--border); border-radius: 12px;
+  background: var(--card); color: var(--text); outline: none;
+}
+.spell-input:focus { border-color: var(--primary); }
+.leech-tag { color: var(--amber); font-weight: 700; font-size: 12px; }
+
+/* ===== iOS 설치 안내 배너 ===== */
+.ios-banner { position: relative; border-left: 4px solid var(--primary); padding-right: 40px; }
+.ios-banner-x {
+  position: absolute; top: 10px; right: 10px;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--bg); border: none; color: var(--text-sub);
+  cursor: pointer; font-size: 13px;
+}
+
 /* ===== 스트릭 프리즈 · 복습 순연 · 복귀 ===== */
 .freeze-notice { border-left: 4px solid #64b5f6; background: #f2f9ff; }
 .freeze-count {

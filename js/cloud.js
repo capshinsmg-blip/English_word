@@ -66,7 +66,7 @@ if (CONFIGURED) {
 
   // 진도가 바뀌는 모든 길목(SRS 메서드)을 감싸 자동 저장을 예약한다
   ["completeLearn", "completeReview", "applyPlacement", "skipOnboarding", "clearOnboarding", "save", "reset",
-   "recordAnswer", "applyFreezes", "buyFreeze"]
+   "recordAnswer", "applyFreezes", "buyFreeze", "markLeechFixed", "claimDailyQuest"]
     .forEach(name => {
       const orig = SRS[name];
       if (typeof orig === "function") {

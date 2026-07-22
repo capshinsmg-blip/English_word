@@ -51,7 +51,13 @@
   - **스트릭 프리즈**: XP 200으로 구매(최대 2개, `buyFreeze`), 공백일을 자동 방어(`applyFreezes` — 앱 시작 시 호출, `frozenDays`에 기록). 레벨용 누적 `xp`는 유지하고 `spentXp`로 잔액만 차감(`xpBalance`) — 캐릭터 레벨은 안 떨어짐
   - **복습 상한**: 하루 최대 3개 배치(`REVIEW_DAILY_CAP`, `dueReviewsToday`) — 초과분 자동 순연, 급한(밀린 일수 큰) 순. 홈에 순연 안내 카드
   - **복귀 화면**: 3일+ 공백 && 밀린 복습 2개+ → 하루 1회 환영 화면(`renderComeback`, localStorage `ew_comeback_v1`)
-  - **단어별 이력**: `state.wordStats[id] = { seen, wrong }` — 퀴즈 세션 첫 시도만 기록(`recordAnswer`, 재시험 제외). 취약 단어 표시·리치 큐·인출 사다리(P1)의 데이터 기반
+  - **단어별 이력**: `state.wordStats[id] = { seen, wrong, fixed }` — 퀴즈 세션 첫 시도만 기록(`recordAnswer`, 재시험 제외). fixed = 복습 찬스에서 회복한 횟수(`markLeechFixed`)
+- 인출 사다리 (app.js `quizTypeFor`): 복습 차수가 오를수록 깊은 인출 요구 — 0·1차 = 영→한 4지선다(mc) / 2차 = 한→영(rev)·듣기(listen) 교차 / 3차 = 철자 입력(spell, 예문 빈칸 우선). 재시험도 같은 유형 유지
+- 리치 큐: 미해결 오답(wrong > fixed) 단어를 새 단어 확인 시험에 최대 2개 "🔁 복습 찬스"로 끼움(`leechWords`) — 배치에는 미포함, 첫 시도 정답 시 회복
+- 데일리 퀘스트 (홈 카드): 새 단어 완료 / 오늘 복습 완료 / 발음 5회 듣기(localStorage `ew_daily_v1`) → 3종 달성 시 +30 XP 1회(`claimDailyQuest`, `questClaimedOn`)
+- 자동 발음: 학습 카드 렌더 시 자동 TTS (`settings.autoSpeak`, 기본 on, 설정 토글)
+- 레벨테스트 회상 검증: 자가 신고 후 "알아요" 중 가장 어려운 2개를 4지선다로 검증(`startVerify`) — 틀리면 모름으로 정정
+- iOS 설치 배너: iOS Safari && 미설치 시 홈에 "홈 화면에 추가" 안내 (localStorage `ew_ios_banner_v1`로 닫기 기억)
 
 ## 분석 (GA4)
 - 측정 ID는 `index.html` 상단 `window.GA_ID` 한 곳에서 관리 (placeholder면 GA 미로드)

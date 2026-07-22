@@ -83,6 +83,15 @@
   }
 
   // ===== 발음 듣기 (Web Speech API — 브라우저 내장 TTS) =====
+  // 오늘 하루 듣기 횟수 (데일리 퀘스트용, 기기 로컬)
+  function getDaily() {
+    try {
+      const d = JSON.parse(localStorage.getItem("ew_daily_v1") || "null");
+      if (d && d.date === SRS.todayStr()) return d;
+    } catch {}
+    return { date: SRS.todayStr(), listens: 0 };
+  }
+
   function speak(text) {
     if (!("speechSynthesis" in window)) return;
     speechSynthesis.cancel(); // 이전 재생 중단
@@ -90,6 +99,9 @@
     u.lang = "en-US";
     u.rate = 0.95;
     speechSynthesis.speak(u);
+    const d = getDaily();
+    d.listens++;
+    localStorage.setItem("ew_daily_v1", JSON.stringify(d));
   }
 
   function speakBtn(text, small) {
@@ -207,7 +219,55 @@
         placeCtx.lastWord = w;
         placeCtx.idx++;
         if (placeCtx.idx < words.length) renderPlaceQ();
-        else renderAnalyzing();
+        else startVerify();
+      });
+    });
+  }
+
+  // ===== 회상 검증: "알아요"라고 답한 단어 중 가장 어려운 2개를 4지선다로 실제 확인 =====
+  // 자가 신고 과대평가를 보정 — 틀리면 그 단어는 "모름"으로 정정되어 배치가 내려감
+  function startVerify() {
+    const knowns = placeCtx.answers.filter(a => a.known);
+    const targets = knowns.slice(-2).map(a => WORDS.find(w => w.id === a.id)).filter(Boolean);
+    if (targets.length === 0) return renderAnalyzing();
+    placeCtx.verify = { targets, idx: 0 };
+    renderVerifyQ();
+  }
+
+  function renderVerifyQ() {
+    const { targets, idx } = placeCtx.verify;
+    const w = targets[idx];
+    const choices = makeChoices(w);
+    $screen.innerHTML = `
+      <div class="onb test">
+        <div class="onb-qnum">확인 문제 ${idx + 1} / ${targets.length}</div>
+        <div class="onb-recall hint">아신다고 한 단어, 진짜 아는지 확인해볼게요 🙂</div>
+        <div class="onb-word">${esc(w.w)} ${speakBtn(w.w)}</div>
+        <div class="onb-pron">${esc(w.p)}</div>
+        <div class="onb-ask">이 단어의 뜻은?</div>
+        <div class="choices">
+          ${choices.map(c => `<button class="choice" data-val="${esc(c)}">${esc(c)}</button>`).join("")}
+        </div>
+      </div>`;
+
+    $screen.querySelectorAll(".choice").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const correct = btn.dataset.val === w.m;
+        $screen.querySelectorAll(".choice").forEach(b => {
+          b.disabled = true;
+          if (b.dataset.val === w.m) b.classList.add("correct");
+        });
+        if (!correct) {
+          btn.classList.add("wrong");
+          // 자가 신고 정정 → 레벨 산정이 실제 실력에 맞게 내려감
+          const ans = placeCtx.answers.find(a => a.id === w.id);
+          if (ans) ans.known = false;
+        }
+        setTimeout(() => {
+          placeCtx.verify.idx++;
+          if (placeCtx.verify.idx < targets.length) renderVerifyQ();
+          else renderAnalyzing();
+        }, 800);
       });
     });
   }
@@ -909,6 +969,20 @@
     document.getElementById("btn-comeback-go").addEventListener("click", renderHome);
   }
 
+  // iOS Safari에서 홈 화면 미설치 상태면 설치 안내 배너 (알림 수신을 위해 필요)
+  function iosBannerHtml() {
+    const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const standalone = window.navigator.standalone === true ||
+      (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
+    if (!isIos || standalone || localStorage.getItem("ew_ios_banner_v1")) return "";
+    return `
+      <div class="card ios-banner">
+        <button class="ios-banner-x" id="btn-ios-close" aria-label="닫기">✕</button>
+        <div class="card-title">📲 홈 화면에 추가하고 알림 받기</div>
+        <div class="card-sub">Safari 하단 <b>공유 버튼</b> → <b>'홈 화면에 추가'</b>를 누르면 앱처럼 쓰고 복습 알림도 받을 수 있어요.</div>
+      </div>`;
+  }
+
   function renderHome() {
     state = SRS.load();
     updateStreak();
@@ -928,7 +1002,8 @@
       <div class="greeting">
         <h2>오늘의 학습 🎯</h2>
         <p>${SRS.todayStr()} · 에빙하우스 곡선으로 똑똑하게 외우기</p>
-      </div>`;
+      </div>
+      ${iosBannerHtml()}`;
 
     // 프리즈가 연속 기록을 지켜준 경우 1회 알림
     if (freezeNotice > 0) {
@@ -941,6 +1016,22 @@
     }
 
     html += charCardHtml(true);
+
+    // 데일리 퀘스트 (3종 달성 → 보너스 XP)
+    const daily = getDaily();
+    const q1 = learnedToday;
+    const q2 = reviews.length === 0;               // 오늘 도래분을 모두 끝냈으면 달성 (도래 0인 날도 달성)
+    const q3 = daily.listens >= 5;
+    const questAll = q1 && q2 && q3;
+    const questClaimed = state.questClaimedOn === SRS.todayStr();
+    html += `
+      <div class="card quest-card">
+        <div class="card-title" style="font-size:15px">📋 오늘의 퀘스트${questClaimed ? ` <span class="quest-done-tag">완료 🎉</span>` : ""}</div>
+        <div class="quest-row${q1 ? " done" : ""}"><span>${q1 ? "✅" : "⬜"}</span> 새 단어 외우기</div>
+        <div class="quest-row${q2 ? " done" : ""}"><span>${q2 ? "✅" : "⬜"}</span> 오늘의 복습 모두 끝내기</div>
+        <div class="quest-row${q3 ? " done" : ""}"><span>${q3 ? "✅" : "⬜"}</span> 발음 5회 듣기 <span class="quest-count">${Math.min(daily.listens, 5)}/5</span></div>
+        ${questAll && !questClaimed ? `<button class="btn btn-primary btn-block btn-sm" id="btn-quest-claim" style="margin-top:10px">🎁 보너스 +${SRS.QUEST_BONUS_XP} XP 받기</button>` : ""}
+      </div>`;
 
     // 새 단어 카드
     if (learnedToday) {
@@ -1014,6 +1105,18 @@
         startQuiz(wordsByIds(batch.wordIds), { batchId: batch.id, stage: Number(btn.dataset.stage) });
       });
     });
+    const btnQuest = document.getElementById("btn-quest-claim");
+    if (btnQuest) btnQuest.addEventListener("click", () => {
+      if (SRS.claimDailyQuest(state)) {
+        state = SRS.load();
+        renderHome();
+      }
+    });
+    const btnIosClose = document.getElementById("btn-ios-close");
+    if (btnIosClose) btnIosClose.addEventListener("click", () => {
+      localStorage.setItem("ew_ios_banner_v1", "closed");
+      renderHome();
+    });
   }
 
   // ===== 학습 화면 (새 단어 카드 넘기기) =====
@@ -1060,12 +1163,21 @@
         state = SRS.load();
         updateStreak();
         track("learn_complete", { count: learnCtx.words.length });
-        startQuiz(learnCtx.words, { batchId: null, stage: 0, learnXp: state.xp - xpBefore });
+        // 리치 큐: 예전에 틀렸던 단어 최대 2개를 "복습 찬스"로 확인 시험에 끼움 (배치에는 미포함)
+        const leech = SRS.leechWords(state, 2).filter(lw => !learnCtx.words.some(x => x.id === lw.id));
+        startQuiz(learnCtx.words.concat(leech), {
+          batchId: null, stage: 0,
+          learnXp: state.xp - xpBefore,
+          leechIds: new Set(leech.map(w => w.id))
+        });
       } else {
         learnCtx.idx++;
         renderLearnCard();
       }
     });
+
+    // 자동 발음 (설정에서 끌 수 있음)
+    if (state.settings.autoSpeak !== false) speak(w.w);
   }
 
   // ===== 퀴즈 (시험 → 틀린 단어 재암기 → 재시험) =====
@@ -1079,10 +1191,21 @@
       wrong: [],                  // 이번 라운드에서 틀린 단어
       firstTotal: words.length,
       firstCorrect: 0,
-      round: 1
+      round: 1,
+      types: {},                                    // 단어별 문제 유형 (재시험에도 같은 유형 유지)
+      leechIds: meta.leechIds || new Set()          // 이번 시험에 끼운 "복습 찬스" 단어
     };
+    quiz.queue.forEach((w, i) => { quiz.types[w.id] = quizTypeFor(meta.stage, i); });
     track("quiz_start", { stage: meta.stage });
     renderQuizQuestion();
+  }
+
+  // ===== 인출 사다리: 복습 차수가 오를수록 더 깊은 인출을 요구 =====
+  //  0·1차 = mc(영→한 4지선다, 인지) → 2차 = rev(한→영)·listen(듣기) 교차 → 3차 = spell(철자 입력, 산출)
+  function quizTypeFor(stage, i) {
+    if (stage <= 1) return "mc";
+    if (stage === 2) return i % 2 === 0 ? "rev" : "listen";
+    return "spell";
   }
 
   function makeChoices(word) {
@@ -1090,19 +1213,60 @@
     return shuffle([word.m, ...wrongPool]);
   }
 
+  // 한→영: 영단어 선택지 4개
+  function makeChoicesRev(word) {
+    const wrongPool = shuffle(WORDS.filter(x => x.id !== word.id)).slice(0, 3).map(x => x.w);
+    return shuffle([word.w, ...wrongPool]);
+  }
+
+  // 공통 채점 처리 (이력 기록·복습찬스 회복·오답 적재)
+  function settleAnswer(w, correct) {
+    if (quiz.round === 1) {
+      SRS.recordAnswer(state, w.id, correct);
+      if (correct && quiz.leechIds.has(w.id)) SRS.markLeechFixed(state, w.id);
+      if (correct) quiz.firstCorrect++;
+    }
+    if (!correct) quiz.wrong.push(w);
+  }
+
+  function quizHeaderHtml(w) {
+    const stageName = quiz.meta.stage === 0 ? "확인 시험" : SRS.STAGE_NAMES[quiz.meta.stage];
+    const leech = quiz.leechIds.has(w.id) ? ` · <span class="leech-tag">🔁 복습 찬스</span>` : "";
+    return `<div class="learn-progress">${stageName}${quiz.round > 1 ? ` · 재시험 ${quiz.round - 1}회차` : ""} · ${quiz.idx + 1} / ${quiz.queue.length}${leech}</div>`;
+  }
+
   function renderQuizQuestion() {
     const w = quiz.queue[quiz.idx];
-    const choices = makeChoices(w);
-    const stageName = quiz.meta.stage === 0 ? "확인 시험" : SRS.STAGE_NAMES[quiz.meta.stage];
+    const qtype = quiz.types[w.id] || "mc";
+    if (qtype === "spell") return renderSpellQuestion(w);
+
+    // 선택형 3종: mc(영→한) / rev(한→영) / listen(듣고 뜻 고르기)
+    let questionHtml, choices, answerVal;
+    if (qtype === "rev") {
+      choices = makeChoicesRev(w);
+      answerVal = w.w;
+      questionHtml = `
+        <div class="label">이 뜻의 단어는?</div>
+        <div class="word quiz-mean">${esc(w.m)}</div>`;
+    } else if (qtype === "listen") {
+      choices = makeChoices(w);
+      answerVal = w.m;
+      questionHtml = `
+        <div class="label">발음을 듣고 뜻을 고르세요</div>
+        <button class="listen-play" id="listen-play" aria-label="발음 다시 듣기">🔊</button>`;
+    } else {
+      choices = makeChoices(w);
+      answerVal = w.m;
+      questionHtml = `
+        <div class="label">이 단어의 뜻은?</div>
+        <div class="word">${esc(w.w)} ${speakBtn(w.w)}</div>`;
+    }
 
     $screen.innerHTML = `
-      <div class="learn-progress">${stageName}${quiz.round > 1 ? ` · 재시험 ${quiz.round - 1}회차` : ""} · ${quiz.idx + 1} / ${quiz.queue.length}</div>
-      <div class="quiz-q">
-        <div class="label">이 단어의 뜻은?</div>
-        <div class="word">${esc(w.w)} ${speakBtn(w.w)}</div>
-      </div>
+      ${quizHeaderHtml(w)}
+      <div class="quiz-q">${questionHtml}</div>
       <div class="choices">
-        ${choices.map(c => `<button class="choice" data-mean="${esc(c)}">${esc(c)}</button>`).join("")}
+        ${choices.map(c => `<button class="choice" data-val="${esc(c)}">${esc(c)}</button>`).join("")}
       </div>
       <div class="quiz-feedback" id="feedback"></div>
       <button class="btn btn-primary btn-block" id="btn-quiz-next" style="display:none">다음 →</button>`;
@@ -1110,40 +1274,106 @@
     const $fb = document.getElementById("feedback");
     const $next = document.getElementById("btn-quiz-next");
 
+    if (qtype === "listen") {
+      speak(w.w);
+      document.getElementById("listen-play").addEventListener("click", () => speak(w.w));
+    }
+
     document.querySelectorAll(".choice").forEach(btn => {
       btn.addEventListener("click", () => {
-        const picked = btn.dataset.mean;
-        const correct = picked === w.m;
-        // 단어별 이력: 세션 첫 시도만 기록 (재시험 라운드 제외)
-        if (quiz.round === 1) SRS.recordAnswer(state, w.id, correct);
+        const correct = btn.dataset.val === answerVal;
+        settleAnswer(w, correct);
         document.querySelectorAll(".choice").forEach(b => {
           b.disabled = true;
-          if (b.dataset.mean === w.m) b.classList.add("correct");
+          if (b.dataset.val === answerVal) b.classList.add("correct");
         });
         if (correct) {
-          $fb.textContent = "⭕ 정답!";
+          $fb.textContent = qtype === "listen" ? `⭕ 정답! ${w.w}` : "⭕ 정답!";
           $fb.className = "quiz-feedback ok";
-          if (quiz.round === 1) quiz.firstCorrect++;
         } else {
           btn.classList.add("wrong");
-          $fb.textContent = `❌ 오답! 정답: ${w.m}`;
+          $fb.textContent = qtype === "rev" ? `❌ 오답! 정답: ${w.w}` : `❌ 오답! 정답: ${qtype === "listen" ? w.w + " — " : ""}${w.m}`;
           $fb.className = "quiz-feedback no";
-          quiz.wrong.push(w);
         }
         $next.style.display = "block";
       });
     });
 
-    $next.addEventListener("click", () => {
-      quiz.idx++;
-      if (quiz.idx < quiz.queue.length) {
-        renderQuizQuestion();
-      } else if (quiz.wrong.length > 0) {
-        renderRestudy();
+    $next.addEventListener("click", advanceQuiz);
+  }
+
+  // 3차: 철자 입력 (예문 빈칸 우선, 없으면 뜻 보고 입력)
+  function renderSpellQuestion(w) {
+    const sent = w.ex && w.ex[0] ? w.ex[0][0] : "";
+    const re = new RegExp(w.w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    const blanked = sent && re.test(sent) ? sent.replace(re, "_____") : null;
+
+    $screen.innerHTML = `
+      ${quizHeaderHtml(w)}
+      <div class="quiz-q">
+        <div class="label">뜻을 보고 단어를 입력하세요</div>
+        <div class="word quiz-mean">${esc(w.m)}</div>
+        ${blanked ? `
+          <div class="example" style="margin-top:10px">
+            <div class="en">${esc(blanked)}</div>
+            <div class="ko">${esc(w.ex[0][1])}</div>
+          </div>` : ""}
+      </div>
+      <div class="spell-row">
+        <input type="text" id="spell-input" class="spell-input" placeholder="영어로 입력"
+          autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <button class="btn btn-primary" id="spell-submit">확인</button>
+      </div>
+      <button type="button" class="auth-text-btn" id="spell-idk">모르겠어요</button>
+      <div class="quiz-feedback" id="feedback"></div>
+      <button class="btn btn-primary btn-block" id="btn-quiz-next" style="display:none">다음 →</button>`;
+
+    const $input = document.getElementById("spell-input");
+    const $fb = document.getElementById("feedback");
+    const $next = document.getElementById("btn-quiz-next");
+    let done = false;
+
+    function grade(giveUp) {
+      if (done) return;
+      done = true;
+      const typed = $input.value.trim().toLowerCase();
+      const correct = !giveUp && typed === w.w.toLowerCase();
+      settleAnswer(w, correct);
+      $input.disabled = true;
+      document.getElementById("spell-submit").disabled = true;
+      document.getElementById("spell-idk").style.display = "none";
+      if (correct) {
+        $fb.textContent = "⭕ 정답!";
+        $fb.className = "quiz-feedback ok";
       } else {
-        finishQuiz();
+        $fb.textContent = `❌ ${giveUp ? "" : "오답! "}정답: ${w.w}`;
+        $fb.className = "quiz-feedback no";
+        speak(w.w);
       }
+      $next.style.display = "block";
+    }
+
+    document.getElementById("spell-submit").addEventListener("click", () => {
+      if ($input.value.trim()) grade(false);
     });
+    $input.addEventListener("keydown", e => {
+      if (e.key === "Enter" && $input.value.trim()) grade(false);
+    });
+    document.getElementById("spell-idk").addEventListener("click", () => grade(true));
+    $input.focus();
+
+    $next.addEventListener("click", advanceQuiz);
+  }
+
+  function advanceQuiz() {
+    quiz.idx++;
+    if (quiz.idx < quiz.queue.length) {
+      renderQuizQuestion();
+    } else if (quiz.wrong.length > 0) {
+      renderRestudy();
+    } else {
+      finishQuiz();
+    }
   }
 
   // 틀린 단어 재암기 화면
@@ -1327,6 +1557,18 @@
               : `<button class="btn btn-primary btn-sm" id="btn-buy-freeze">${SRS.FREEZE_COST} XP로 구매</button>`}
         </div>
       </div>
+      <div class="card">
+        <div class="setting-row">
+          <div>
+            <div class="card-title" style="font-size:15px">🔊 단어 자동 발음</div>
+            <div class="card-sub">학습 카드가 넘어갈 때 자동으로 읽어줘요</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="autospeak-toggle" ${state.settings.autoSpeak !== false ? "checked" : ""}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
       <div class="card" id="card-notif">
         <div class="setting-row">
           <div>
@@ -1425,6 +1667,10 @@
         updateStreak();
         renderSettings();
       }
+    });
+    document.getElementById("autospeak-toggle").addEventListener("change", e => {
+      state.settings.autoSpeak = e.target.checked;
+      SRS.save(state);
     });
     document.getElementById("btn-reset").addEventListener("click", () => {
       if (confirm("정말 모든 학습 기록을 초기화할까요?")) {
