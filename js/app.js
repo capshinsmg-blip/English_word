@@ -77,6 +77,19 @@
     return String(str).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
+  // 3칸 세그먼트 진행 바 — "복습 n/3" 텍스트 대신 쓰는 공용 컴포넌트
+  function segBarHtml(done, total, extra) {
+    let cells = "";
+    for (let i = 0; i < total; i++) cells += `<i class="${i < done ? "on" : ""}"></i>`;
+    return `<span class="seg${extra ? " " + extra : ""}">${cells}</span>`;
+  }
+
+  // "2026-07-21" → "7월 21일" (다른 해면 "2025.7.21")
+  function fmtDate(dstr) {
+    const [y, m, d] = dstr.split("-").map(Number);
+    return y === new Date().getFullYear() ? `${m}월 ${d}일` : `${y}.${m}.${d}`;
+  }
+
   function updateStreak() {
     const fz = state.freezes > 0 ? ` · 🧊${state.freezes}` : "";
     $streak.textContent = `🔥 ${SRS.summary(state).streak}일${fz}`;
@@ -1512,16 +1525,12 @@
       for (const b of state.batches.slice().reverse()) {
         const ws = wordsByIds(b.wordIds);
         const doneCount = [1, 2, 3].filter(k => b.reviews[k]).length;
-        const status = b.reviews[3] ? "🎓 졸업" : `복습 ${doneCount}/3`;
+        const grad = !!b.reviews[3];
+        const statusText = grad ? "🎓 졸업" : doneCount === 0 ? "복습 대기" : `${doneCount}차 완료`;
         html += `
-          <div class="card">
-            <div class="card-row">
-              <div>
-                <div class="card-sub">${b.learnedOn} 학습</div>
-                <div class="batch-words">${ws.map(w => esc(w.w)).join(", ")}</div>
-              </div>
-              <span class="badge ${b.reviews[3] ? "badge-done" : "badge-new"}" style="margin:0">${status}</span>
-            </div>
+          <div class="card batch-card">
+            <div class="card-sub">${fmtDate(b.learnedOn)} · ${segBarHtml(doneCount, 3, grad ? "grad" : "")} <span class="batch-status${grad ? " grad" : ""}">${statusText}</span></div>
+            <div class="batch-words">${ws.map(w => esc(w.w)).join(", ")}</div>
           </div>`;
       }
       html += `</div>`;
@@ -1530,6 +1539,11 @@
     }
 
     $screen.innerHTML = html;
+
+    // 카드 탭 → 단어 나열 전체 펼치기/접기
+    document.querySelectorAll(".batch-card").forEach(c =>
+      c.addEventListener("click", () => c.classList.toggle("open"))
+    );
   }
 
   // 로그인/클라우드 저장 카드 (Supabase 미설정 시 자동 숨김)
@@ -1843,29 +1857,31 @@
     return !!st && (st.wrong || 0) > (st.fixed || 0);
   }
 
-  function wordStatusBadge(id) {
-    if (isWeakWord(id)) return `<span class="badge badge-weak">🔺 취약</span>`;
+  // 단어 상태 → 좌측 스트라이프 클래스 + 우측 컴팩트 표시 (텍스트 배지 폐지)
+  function wordStatus(id) {
+    if (isWeakWord(id)) return { cls: "st-weak", right: `<span class="wi-state weak">🔺 취약</span>` };
     for (const b of state.batches) {
       if (b.wordIds.includes(id)) {
-        if (b.reviews[3]) return `<span class="badge badge-done">🎓 졸업</span>`;
+        if (b.reviews[3]) return { cls: "st-grad", right: segBarHtml(3, 3, "grad") };
         const done = [1, 2, 3].filter(k => b.reviews[k]).length;
-        return `<span class="badge badge-r1">학습중 ${done}/3</span>`;
+        return { cls: "st-learn", right: segBarHtml(done, 3) };
       }
     }
     const startId = (state.settings && state.settings.startId) || 1;
-    if ((RANK_OF[id] || 0) < (RANK_OF[startId] || 1)) return `<span class="badge badge-known">이미 알아요</span>`;
-    return `<span class="badge badge-new">미학습</span>`;
+    if ((RANK_OF[id] || 0) < (RANK_OF[startId] || 1)) return { cls: "", right: `<span class="wi-state known">이미 알아요</span>` };
+    return { cls: "", right: "" };   // 미학습 = 표시 없음 (기본 상태)
   }
 
   function wordItemHtml(w) {
+    const st = wordStatus(w.id);
     return `
-      <details class="word-item">
+      <details class="word-item${st.cls ? " " + st.cls : ""}">
         <summary>
           <div class="wi-main">
-            <div class="wi-word">${esc(w.w)} <span class="wi-pron">${esc(w.p)}</span></div>
-            <div class="wi-mean">${esc(w.m)}</div>
+            <div class="wi-word">${esc(w.w)}</div>
+            <div class="wi-meta"><b>${esc(w.m)}</b> · ${esc(w.p)}</div>
           </div>
-          ${wordStatusBadge(w.id)}
+          ${st.right}
         </summary>
         <div class="wi-body">
           ${w.ex.map(e => `

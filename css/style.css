@@ -84,6 +84,11 @@ body {
   align-items: center;
   gap: 12px;
 }
+/* 리스트 행 보호 규칙: 가변 텍스트는 줄어들고(min-width:0), 불변 요소(배지·버튼)는 절대 안 눌림 */
+.card-row > div { min-width: 0; }
+.card-row .badge, .setting-row .badge { flex-shrink: 0; }
+.setting-row > div:first-child { min-width: 0; }
+.setting-row .btn, .setting-row .toggle-switch, .setting-row select { flex-shrink: 0; }
 .card-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
 .card-sub { font-size: 13px; color: var(--text-sub); }
 .card.done { opacity: 0.65; }
@@ -95,7 +100,14 @@ body {
   padding: 4px 10px;
   border-radius: 999px;
   margin-bottom: 8px;
+  white-space: nowrap;
 }
+
+/* 세그먼트 진행 바 — "복습 n/3" 텍스트를 대체하는 공용 컴포넌트 */
+.seg { display: inline-flex; gap: 3px; vertical-align: -1px; }
+.seg i { width: 14px; height: 6px; border-radius: 3px; background: var(--border); }
+.seg i.on { background: var(--primary); }
+.seg.grad i.on { background: var(--green); }
 .badge-new { background: var(--primary-light); color: var(--primary); }
 .badge-r1 { background: var(--green-light); color: #047857; }
 .badge-r2 { background: var(--amber-light); color: #b45309; }
@@ -237,8 +249,15 @@ body {
 .stat-box .num { font-size: 26px; font-weight: 800; color: var(--primary); }
 .stat-box .lbl { font-size: 12px; color: var(--text-sub); margin-top: 4px; }
 
-.batch-list .card { padding: 14px 16px; }
-.batch-words { font-size: 14px; font-weight: 600; margin-top: 2px; }
+.batch-list .card { padding: 14px 16px; cursor: pointer; }
+.batch-card .card-sub { display: flex; align-items: center; gap: 5px; }
+.batch-words {
+  font-size: 14px; font-weight: 600; margin-top: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.batch-card.open .batch-words { white-space: normal; overflow: visible; }
+.batch-status { font-size: 11px; font-weight: 700; color: var(--primary); white-space: nowrap; }
+.batch-status.grad { color: var(--green); }
 
 /* ===== 설정 ===== */
 .setting-row {
@@ -504,9 +523,28 @@ body {
 }
 .word-item summary::-webkit-details-marker { display: none; }
 .word-item summary .badge { margin: 0; flex-shrink: 0; }
-.wi-word { font-weight: 800; font-size: 16px; color: var(--primary-dark); }
-.wi-pron { font-weight: 400; font-size: 12px; color: var(--text-sub); }
-.wi-mean { font-size: 13px; margin-top: 2px; }
+/* 2줄 고정 행: 단어 1줄 + (뜻 · 발음) 1줄 — 접힘 상태에선 절대 안 늘어남 */
+.wi-main { flex: 1; min-width: 0; }
+.wi-word {
+  font-weight: 800; font-size: 16px; color: var(--primary-dark);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.wi-meta {
+  font-size: 12.5px; color: var(--text-sub); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.wi-meta b { color: var(--text); font-weight: 600; }
+/* 펼치면 말줄임 해제 — 전체 뜻·발음 표시 */
+.word-item[open] .wi-word, .word-item[open] .wi-meta { white-space: normal; overflow: visible; }
+/* 학습 상태 = 좌측 색 스트라이프 (텍스트 배지 대신) */
+.word-item.st-learn { border-left: 4px solid var(--primary); }
+.word-item.st-grad { border-left: 4px solid var(--green); }
+.word-item.st-weak { border-left: 4px solid var(--red); }
+/* 우측 컴팩트 상태 표시 */
+.wi-state { font-size: 11px; font-weight: 800; flex-shrink: 0; white-space: nowrap; }
+.wi-state.weak { color: var(--red); }
+.wi-state.known { color: var(--text-sub); font-weight: 600; }
+.word-item summary .seg { flex-shrink: 0; }
 .wi-body { padding: 0 14px 12px; }
 
 /* ===== PC(데스크톱) 화면 — 모바일 앱이 가운데 떠 있는 스타일 ===== */
@@ -536,7 +574,11 @@ body {
   color: var(--text-sub);
   margin: 18px 2px 8px;
 }
-.cat-grid { display: flex; flex-direction: column; gap: 8px; }
+/* 테마 카드는 2열 타일 — 인덱스 스크롤 절반 (오답노트·전체 보기는 그리드 밖 풀폭) */
+.cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cat-grid .cat-card { padding: 12px 10px; gap: 6px; }
+.cat-grid .cat-name { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cat-grid .cat-arrow { display: none; }
 .cat-card {
   width: 100%;
   display: flex;
