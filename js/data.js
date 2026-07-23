@@ -11,7 +11,8 @@ const WORDS = [].concat(
   WORDS_CHUNK_1,
   WORDS_CHUNK_2,
   WORDS_CHUNK_3,
-  WORDS_CHUNK_4
+  WORDS_CHUNK_4,
+  WORDS_CHUNK_5
   // 새 청크 추가 시: 1) js/data/words-N.js 생성  2) 여기에 등록
   //                3) index.html <script> 추가  4) sw.js ASSETS 추가 + 캐시 버전 올리기
 );
@@ -232,7 +233,21 @@ const _RAW_THEMES = [
   { name: "🧱 재료·질감", ids: _range(5641, 5742) },
   { name: "✨ 빛·외양 묘사 B2", ids: _range(5743, 5855) },
   { name: "🔢 수량·논리", ids: _range(5856, 5959) },
-  { name: "👶 인생 단계·양육", ids: _range(5960, 6000) }
+  { name: "👶 인생 단계·양육", ids: _range(5960, 6000) },
+
+  // ===== Phase 3 신규 (words-5, id 6001~7000) =====
+  { name: "🔬 과학·실험", ids: _range(6001, 6089) },
+  { name: "🌌 우주·천문", ids: _range(6090, 6143) },
+  { name: "🌋 지리·지질·기후", ids: _range(6144, 6224) },
+  { name: "⛪ 종교·철학·윤리", ids: _range(6225, 6311) },
+  { name: "🎖️ 군사·안보", ids: _range(6312, 6389) },
+  { name: "📖 문학·수사", ids: _range(6390, 6469) },
+  { name: "🧠 성격·심리 C1", ids: _range(6470, 6579) },
+  { name: "💗 감정 미묘 C1", ids: _range(6580, 6688) },
+  { name: "🏙️ 도시·인프라", ids: _range(6689, 6768) },
+  { name: "🌾 농업·식량", ids: _range(6769, 6843) },
+  { name: "🎓 학문·연구·통계", ids: _range(6844, 6928) },
+  { name: "⚡ C1 동사·표현", ids: _range(6929, 7000) }
 ];
 
 // 원본 테마 여러 개의 id를 하나로 합치는 헬퍼
@@ -256,6 +271,8 @@ const THEME_GROUPS = [
     { name: "😊 감정·기분", ids: _pick("😊 감정·기분", "😌 감정 형용사②", "🎭 감정·반응", "❤️ 감정·심리 동사") },
     { name: "🙋 성격·태도", ids: _pick("🙋 성격·사람", "🧠 성격·태도", "🧠 성격·심리②") },
     { name: "🌟 가치·예절", ids: _pick("🌟 가치·덕목", "🤲 예절·태도") },
+    { name: "🧠 성격·심리 C1", ids: _pick("🧠 성격·심리 C1") },
+    { name: "💗 감정 미묘 C1", ids: _pick("💗 감정 미묘 C1") },
   ]},
   { name: "👥 사람·관계", themes: [
     { name: "💕 관계·연애", ids: _pick("💕 관계·연애", "🤝 관계·인맥") },
@@ -291,6 +308,7 @@ const THEME_GROUPS = [
     { name: "💼 커리어·업무 실전", ids: _pick("💼 커리어·업무 실전") },
     { name: "🎓 학습·발표 심화", ids: _pick("🎓 학습·발표 심화") },
     { name: "🏢 직장 문화·HR", ids: _pick("🏢 직장 문화·HR") },
+    { name: "🎓 학문·연구·통계", ids: _pick("🎓 학문·연구·통계") },
   ]},
   { name: "🚗 이동·여행", themes: [
     { name: "✈️ 여행", ids: _pick("✈️ 여행", "🧳 여행·휴가", "✈️ 여행③", "✈️ 여행④") },
@@ -305,6 +323,8 @@ const THEME_GROUPS = [
     { name: "🐶 동물·식물", ids: _pick("🐶 동물·반려동물", "🐾 동물·곤충", "🦅 새·해양생물", "🌸 식물·꽃") },
     { name: "🏔️ 캠핑·아웃도어", ids: _pick("🏔️ 캠핑·아웃도어") },
     { name: "🌪️ 날씨·자연 심화", ids: _pick("🌪️ 날씨·자연 심화") },
+    { name: "🌋 지리·지질·기후", ids: _pick("🌋 지리·지질·기후") },
+    { name: "🌾 농업·식량", ids: _pick("🌾 농업·식량") },
   ]},
   { name: "🧍 몸·건강", themes: [
     { name: "🧍 몸·외모", ids: _pick("🧍 외모·신체", "💪 신체 부위", "🦷 신체 내부·부위") },
@@ -319,6 +339,7 @@ const THEME_GROUPS = [
     { name: "🎵 음악·예술", ids: _pick("🎵 음악·예술", "🎻 악기·음악", "✒️ 문학·창작") },
     { name: "🎉 모임·행사", ids: _pick("🎉 모임·파티", "🎈 행사·여가") },
     { name: "🎬 미디어·엔터 심화", ids: _pick("🎬 미디어·엔터 심화") },
+    { name: "📖 문학·수사", ids: _pick("📖 문학·수사") },
   ]},
   { name: "🌍 기술·사회", themes: [
     { name: "💻 기술·IT", ids: _pick("💻 기술·IT", "💻 기술③", "💻 기술④") },
@@ -328,6 +349,11 @@ const THEME_GROUPS = [
     { name: "⚖️ 법·재판", ids: _pick("⚖️ 법·재판") },
     { name: "🏛️ 정치·국제", ids: _pick("🏛️ 정치·국제") },
     { name: "🕵️ 범죄·수사", ids: _pick("🕵️ 범죄·수사") },
+    { name: "🔬 과학·실험", ids: _pick("🔬 과학·실험") },
+    { name: "🌌 우주·천문", ids: _pick("🌌 우주·천문") },
+    { name: "⛪ 종교·철학·윤리", ids: _pick("⛪ 종교·철학·윤리") },
+    { name: "🎖️ 군사·안보", ids: _pick("🎖️ 군사·안보") },
+    { name: "🏙️ 도시·인프라", ids: _pick("🏙️ 도시·인프라") },
   ]},
   { name: "⚡ 행동·생각", themes: [
     { name: "⚡ 자주 쓰는 동사", ids: _pick("🗣️ 핵심 동사", "🏃 기본 동사①", "🏃 기본 동사②", "🗣️ 핵심 동사④") },
@@ -337,6 +363,7 @@ const THEME_GROUPS = [
     { name: "📈 고급 동사", ids: _pick("📈 고급 동사") },
     { name: "👂 동작·소리 표현", ids: _pick("👂 동작·소리 표현") },
     { name: "🗣️ 인지·표현 동사 B2", ids: _pick("🗣️ 인지·표현 동사 B2") },
+    { name: "⚡ C1 동사·표현", ids: _pick("⚡ C1 동사·표현") },
   ]},
   { name: "🧩 묘사·기초 표현", themes: [
     { name: "✨ 모양·상태 묘사", ids: _pick("✨ 묘사·평가", "🔤 기본 형용사", "🎨 묘사 형용사②", "🎨 색·모양", "✨ 성격·자질②") },
