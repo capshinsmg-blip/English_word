@@ -10,7 +10,8 @@
 const WORDS = [].concat(
   WORDS_CHUNK_1,
   WORDS_CHUNK_2,
-  WORDS_CHUNK_3
+  WORDS_CHUNK_3,
+  WORDS_CHUNK_4
   // 새 청크 추가 시: 1) js/data/words-N.js 생성  2) 여기에 등록
   //                3) index.html <script> 추가  4) sw.js ASSETS 추가 + 캐시 버전 올리기
 );
@@ -38,6 +39,13 @@ const _p1Replaced = new Set(Object.values(_P1_BLOCKS).flat());
 function _p1Kept(lo, hi) {
   const out = [];
   for (let i = lo; i <= hi; i++) { if (!_p1Replaced.has(i)) out.push(i); }
+  return out;
+}
+
+// Phase 2 (words-4, id 5001~6000)는 블록이 연속 구간 — 범위 헬퍼로 등록
+function _range(lo, hi) {
+  const out = [];
+  for (let i = lo; i <= hi; i++) out.push(i);
   return out;
 }
 
@@ -212,7 +220,19 @@ const _RAW_THEMES = [
   { name: "🤖 IT·디지털 생활", ids: _P1_BLOCKS["🤖 IT·디지털 생활"] },
   { name: "📈 고급 동사", ids: _P1_BLOCKS["📈 고급 동사"] },
   { name: "🎯 고급 형용사·부사", ids: _P1_BLOCKS["🎯 고급 형용사·부사"] },
-  { name: "👂 동작·소리 표현", ids: _P1_BLOCKS["👂 동작·소리 표현"] }
+  { name: "👂 동작·소리 표현", ids: _P1_BLOCKS["👂 동작·소리 표현"] },
+  // ===== Phase 2 신규 (words-4, id 5001~6000) =====
+  { name: "⚖️ 법·재판", ids: _range(5001, 5073) },
+  { name: "🏛️ 정치·국제", ids: _range(5074, 5155) },
+  { name: "📊 경제·시장", ids: _range(5156, 5239) },
+  { name: "🩺 의학·인체 심화", ids: _range(5240, 5339) },
+  { name: "🕵️ 범죄·수사", ids: _range(5340, 5421) },
+  { name: "🏢 직장 문화·HR", ids: _range(5422, 5505) },
+  { name: "🗣️ 인지·표현 동사 B2", ids: _range(5506, 5640) },
+  { name: "🧱 재료·질감", ids: _range(5641, 5742) },
+  { name: "✨ 빛·외양 묘사 B2", ids: _range(5743, 5855) },
+  { name: "🔢 수량·논리", ids: _range(5856, 5959) },
+  { name: "👶 인생 단계·양육", ids: _range(5960, 6000) }
 ];
 
 // 원본 테마 여러 개의 id를 하나로 합치는 헬퍼
@@ -241,6 +261,7 @@ const THEME_GROUPS = [
     { name: "💕 관계·연애", ids: _pick("💕 관계·연애", "🤝 관계·인맥") },
     { name: "👨‍👩‍👧 가족·육아", ids: _pick("👨‍👩‍👧 가족", "👶 육아·아이") },
     { name: "💞 관계 심화", ids: _pick("💞 관계 심화") },
+    { name: "👶 인생 단계·양육", ids: _pick("👶 인생 단계·양육") },
   ]},
   { name: "🍽️ 먹기·요리", themes: [
     { name: "🍽️ 식당·주문", ids: _pick("🍽️ 식당·주문") },
@@ -254,6 +275,7 @@ const THEME_GROUPS = [
     { name: "💰 돈·금융", ids: _pick("💰 돈", "🏦 경제·금융", "🏦 금융 심화", "💰 돈·금융②") },
     { name: "📈 비즈니스", ids: _pick("🏢 비즈니스·업무", "📈 비즈니스·경제", "📊 비즈니스③") },
     { name: "🛒 소비·재테크 심화", ids: _pick("🛒 소비·재테크 심화") },
+    { name: "📊 경제·시장", ids: _pick("📊 경제·시장") },
   ]},
   { name: "🏠 집·생활", themes: [
     { name: "🏠 집·일상", ids: _pick("🏠 집·일상", "🛋️ 집·가구", "🏘️ 집·건물 구조", "🏠 집·인테리어②") },
@@ -268,6 +290,7 @@ const THEME_GROUPS = [
     { name: "🧘 자기계발", ids: _pick("📈 성장·자기계발②", "🧘 자기계발③") },
     { name: "💼 커리어·업무 실전", ids: _pick("💼 커리어·업무 실전") },
     { name: "🎓 학습·발표 심화", ids: _pick("🎓 학습·발표 심화") },
+    { name: "🏢 직장 문화·HR", ids: _pick("🏢 직장 문화·HR") },
   ]},
   { name: "🚗 이동·여행", themes: [
     { name: "✈️ 여행", ids: _pick("✈️ 여행", "🧳 여행·휴가", "✈️ 여행③", "✈️ 여행④") },
@@ -289,6 +312,7 @@ const THEME_GROUPS = [
     { name: "🏋️ 운동·스포츠", ids: _pick("⚽ 스포츠·경기", "🏋️ 운동·스포츠", "🏋️ 운동·건강②") },
     { name: "👕 옷·꾸미기", ids: _pick("👕 옷·패션", "🧥 옷·액세서리", "🛁 욕실·위생") },
     { name: "🧘 몸·마음 관리", ids: _pick("🧘 몸·마음 관리") },
+    { name: "🩺 의학·인체 심화", ids: _pick("🩺 의학·인체 심화") },
   ]},
   { name: "🎨 취미·문화", themes: [
     { name: "🎬 취미·영화", ids: _pick("🎬 취미·여가", "🎬 영화·방송") },
@@ -301,6 +325,9 @@ const THEME_GROUPS = [
     { name: "🌍 사회·법·세계", ids: _pick("🌍 세계·나라·문화", "⚖️ 규칙·법·사회", "⚖️ 법·정의", "🌍 도시·사회②", "🌏 시사·정치②") },
     { name: "🏛️ 역사·과학·재난", ids: _pick("🏛️ 역사·왕국", "🔬 과학·자연현상", "🚨 사고·재난", "🧱 건축·자재", "🏗️ 건물·장소") },
     { name: "🤖 IT·디지털 생활", ids: _pick("🤖 IT·디지털 생활") },
+    { name: "⚖️ 법·재판", ids: _pick("⚖️ 법·재판") },
+    { name: "🏛️ 정치·국제", ids: _pick("🏛️ 정치·국제") },
+    { name: "🕵️ 범죄·수사", ids: _pick("🕵️ 범죄·수사") },
   ]},
   { name: "⚡ 행동·생각", themes: [
     { name: "⚡ 자주 쓰는 동사", ids: _pick("🗣️ 핵심 동사", "🏃 기본 동사①", "🏃 기본 동사②", "🗣️ 핵심 동사④") },
@@ -309,6 +336,7 @@ const THEME_GROUPS = [
     { name: "🤔 생각·판단", ids: _pick("🤔 생각·의견", "🔍 분석·사고 동사", "🧩 추상 개념", "⚙️ 추상 개념②", "🧠 사고·심리②") },
     { name: "📈 고급 동사", ids: _pick("📈 고급 동사") },
     { name: "👂 동작·소리 표현", ids: _pick("👂 동작·소리 표현") },
+    { name: "🗣️ 인지·표현 동사 B2", ids: _pick("🗣️ 인지·표현 동사 B2") },
   ]},
   { name: "🧩 묘사·기초 표현", themes: [
     { name: "✨ 모양·상태 묘사", ids: _pick("✨ 묘사·평가", "🔤 기본 형용사", "🎨 묘사 형용사②", "🎨 색·모양", "✨ 성격·자질②") },
@@ -318,6 +346,9 @@ const THEME_GROUPS = [
     { name: "📐 수학·측정", ids: _pick("📐 수학·측정") },
     { name: "🎯 고급 형용사·부사", ids: _pick("🎯 고급 형용사·부사") },
     { name: "🗯️ 이디엄·구동사 B2", ids: _pick("🗯️ 이디엄·구동사 B2") },
+    { name: "🧱 재료·질감", ids: _pick("🧱 재료·질감") },
+    { name: "✨ 빛·외양 묘사 B2", ids: _pick("✨ 빛·외양 묘사 B2") },
+    { name: "🔢 수량·논리", ids: _pick("🔢 수량·논리") },
   ]},
 ];
 
