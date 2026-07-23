@@ -12,7 +12,8 @@ const WORDS = [].concat(
   WORDS_CHUNK_2,
   WORDS_CHUNK_3,
   WORDS_CHUNK_4,
-  WORDS_CHUNK_5
+  WORDS_CHUNK_5,
+  WORDS_CHUNK_6
   // 새 청크 추가 시: 1) js/data/words-N.js 생성  2) 여기에 등록
   //                3) index.html <script> 추가  4) sw.js ASSETS 추가 + 캐시 버전 올리기
 );
@@ -247,7 +248,21 @@ const _RAW_THEMES = [
   { name: "🏙️ 도시·인프라", ids: _range(6689, 6768) },
   { name: "🌾 농업·식량", ids: _range(6769, 6843) },
   { name: "🎓 학문·연구·통계", ids: _range(6844, 6928) },
-  { name: "⚡ C1 동사·표현", ids: _range(6929, 7000) }
+  { name: "⚡ C1 동사·표현", ids: _range(6929, 7000) },
+
+  // ===== Phase 4 신규 (words-6, id 7001~8000) =====
+  { name: "🎨 예술·미술·건축", ids: _range(7001, 7083) },
+  { name: "🎭 공연·무대·제작", ids: _range(7084, 7170) },
+  { name: "📰 언론·출판·미디어", ids: _range(7171, 7248) },
+  { name: "♻️ 환경·기후·에너지", ids: _range(7249, 7326) },
+  { name: "💹 금융·투자·회계", ids: _range(7327, 7400) },
+  { name: "🏺 역사·문명·유산", ids: _range(7401, 7482) },
+  { name: "⚓ 항해·해양·어업", ids: _range(7483, 7567) },
+  { name: "🧩 심리·행동·인지", ids: _range(7568, 7653) },
+  { name: "🧵 수공예·직물·의복", ids: _range(7654, 7742) },
+  { name: "💠 C1 추상 명사", ids: _range(7743, 7828) },
+  { name: "🎩 C1 고급 형용사", ids: _range(7829, 7914) },
+  { name: "🔗 C1 담화·표현", ids: _range(7915, 8000) }
 ];
 
 // 원본 테마 여러 개의 id를 하나로 합치는 헬퍼
@@ -273,6 +288,7 @@ const THEME_GROUPS = [
     { name: "🌟 가치·예절", ids: _pick("🌟 가치·덕목", "🤲 예절·태도") },
     { name: "🧠 성격·심리 C1", ids: _pick("🧠 성격·심리 C1") },
     { name: "💗 감정 미묘 C1", ids: _pick("💗 감정 미묘 C1") },
+    { name: "🧩 심리·행동·인지", ids: _pick("🧩 심리·행동·인지") },
   ]},
   { name: "👥 사람·관계", themes: [
     { name: "💕 관계·연애", ids: _pick("💕 관계·연애", "🤝 관계·인맥") },
@@ -293,6 +309,7 @@ const THEME_GROUPS = [
     { name: "📈 비즈니스", ids: _pick("🏢 비즈니스·업무", "📈 비즈니스·경제", "📊 비즈니스③") },
     { name: "🛒 소비·재테크 심화", ids: _pick("🛒 소비·재테크 심화") },
     { name: "📊 경제·시장", ids: _pick("📊 경제·시장") },
+    { name: "💹 금융·투자·회계", ids: _pick("💹 금융·투자·회계") },
   ]},
   { name: "🏠 집·생활", themes: [
     { name: "🏠 집·일상", ids: _pick("🏠 집·일상", "🛋️ 집·가구", "🏘️ 집·건물 구조", "🏠 집·인테리어②") },
@@ -340,6 +357,9 @@ const THEME_GROUPS = [
     { name: "🎉 모임·행사", ids: _pick("🎉 모임·파티", "🎈 행사·여가") },
     { name: "🎬 미디어·엔터 심화", ids: _pick("🎬 미디어·엔터 심화") },
     { name: "📖 문학·수사", ids: _pick("📖 문학·수사") },
+    { name: "🎨 예술·미술·건축", ids: _pick("🎨 예술·미술·건축") },
+    { name: "🎭 공연·무대·제작", ids: _pick("🎭 공연·무대·제작") },
+    { name: "🧵 수공예·직물·의복", ids: _pick("🧵 수공예·직물·의복") },
   ]},
   { name: "🌍 기술·사회", themes: [
     { name: "💻 기술·IT", ids: _pick("💻 기술·IT", "💻 기술③", "💻 기술④") },
@@ -354,6 +374,10 @@ const THEME_GROUPS = [
     { name: "⛪ 종교·철학·윤리", ids: _pick("⛪ 종교·철학·윤리") },
     { name: "🎖️ 군사·안보", ids: _pick("🎖️ 군사·안보") },
     { name: "🏙️ 도시·인프라", ids: _pick("🏙️ 도시·인프라") },
+    { name: "📰 언론·출판·미디어", ids: _pick("📰 언론·출판·미디어") },
+    { name: "♻️ 환경·기후·에너지", ids: _pick("♻️ 환경·기후·에너지") },
+    { name: "🏺 역사·문명·유산", ids: _pick("🏺 역사·문명·유산") },
+    { name: "⚓ 항해·해양·어업", ids: _pick("⚓ 항해·해양·어업") },
   ]},
   { name: "⚡ 행동·생각", themes: [
     { name: "⚡ 자주 쓰는 동사", ids: _pick("🗣️ 핵심 동사", "🏃 기본 동사①", "🏃 기본 동사②", "🗣️ 핵심 동사④") },
@@ -376,6 +400,9 @@ const THEME_GROUPS = [
     { name: "🧱 재료·질감", ids: _pick("🧱 재료·질감") },
     { name: "✨ 빛·외양 묘사 B2", ids: _pick("✨ 빛·외양 묘사 B2") },
     { name: "🔢 수량·논리", ids: _pick("🔢 수량·논리") },
+    { name: "💠 C1 추상 명사", ids: _pick("💠 C1 추상 명사") },
+    { name: "🎩 C1 고급 형용사", ids: _pick("🎩 C1 고급 형용사") },
+    { name: "🔗 C1 담화·표현", ids: _pick("🔗 C1 담화·표현") },
   ]},
 ];
 
